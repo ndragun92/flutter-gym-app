@@ -46,6 +46,323 @@ class _RootShell extends StatefulWidget {
 class _RootShellState extends State<_RootShell> {
   int index = 0;
 
+  Future<void> _openQuickAddSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.restaurant_rounded),
+                  ),
+                  title: const Text('Quick log meal'),
+                  subtitle: const Text('Add calories and macros quickly'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _openQuickMealDialog();
+                  },
+                ),
+                ListTile(
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.monitor_weight_rounded),
+                  ),
+                  title: const Text('Quick body entry'),
+                  subtitle: const Text('Save current weight'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _openQuickMeasurementDialog();
+                  },
+                ),
+                ListTile(
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.fitness_center_rounded),
+                  ),
+                  title: const Text('Quick workout log'),
+                  subtitle: const Text('Add latest lift set'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _openQuickWorkoutDialog();
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openQuickMealDialog() async {
+    final formKey = GlobalKey<FormState>();
+    final name = TextEditingController();
+    final calories = TextEditingController();
+    final protein = TextEditingController(text: '0');
+    final carbs = TextEditingController(text: '0');
+    final fat = TextEditingController(text: '0');
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 8,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+          ),
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Quick meal log',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: name,
+                  decoration: const InputDecoration(labelText: 'Meal name'),
+                  validator: (value) => (value == null || value.trim().isEmpty)
+                      ? 'Required'
+                      : null,
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: calories,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Calories'),
+                  validator: (value) {
+                    final parsed = int.tryParse((value ?? '').trim());
+                    if (parsed == null || parsed < 0) return 'Invalid number';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _quickNumberField(
+                        controller: protein,
+                        label: 'Protein (g)',
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _quickNumberField(
+                        controller: carbs,
+                        label: 'Carbs (g)',
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                _quickNumberField(controller: fat, label: 'Fat (g)'),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () async {
+                    if (!formKey.currentState!.validate()) return;
+                    await context.read<AppState>().addMealEntry(
+                      name: name.text.trim(),
+                      calories: int.parse(calories.text.trim()),
+                      protein: double.parse(protein.text.trim()),
+                      carbs: double.parse(carbs.text.trim()),
+                      fat: double.parse(fat.text.trim()),
+                      at: DateTime.now(),
+                    );
+                    if (!context.mounted) return;
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(
+                      this.context,
+                    ).showSnackBar(const SnackBar(content: Text('Meal added')));
+                  },
+                  child: const Text('Save meal'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openQuickMeasurementDialog() async {
+    final formKey = GlobalKey<FormState>();
+    final weight = TextEditingController();
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 8,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+          ),
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Quick body entry',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
+                _quickNumberField(controller: weight, label: 'Weight (kg)'),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () async {
+                    if (!formKey.currentState!.validate()) return;
+                    await context.read<AppState>().addBodyMeasurement(
+                      date: DateTime.now(),
+                      weight: double.parse(weight.text.trim()),
+                    );
+                    if (!context.mounted) return;
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      const SnackBar(content: Text('Measurement added')),
+                    );
+                  },
+                  child: const Text('Save measurement'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openQuickWorkoutDialog() async {
+    final formKey = GlobalKey<FormState>();
+    final exercise = TextEditingController();
+    final sets = TextEditingController(text: '3');
+    final reps = TextEditingController(text: '8');
+    final weight = TextEditingController();
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 8,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+          ),
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Quick workout log',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: exercise,
+                  decoration: const InputDecoration(labelText: 'Exercise'),
+                  validator: (value) => (value == null || value.trim().isEmpty)
+                      ? 'Required'
+                      : null,
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: sets,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Sets'),
+                        validator: (value) {
+                          final parsed = int.tryParse((value ?? '').trim());
+                          if (parsed == null || parsed <= 0) {
+                            return 'Invalid';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextFormField(
+                        controller: reps,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Reps'),
+                        validator: (value) {
+                          final parsed = int.tryParse((value ?? '').trim());
+                          if (parsed == null || parsed <= 0) {
+                            return 'Invalid';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                _quickNumberField(controller: weight, label: 'Weight (kg)'),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () async {
+                    if (!formKey.currentState!.validate()) return;
+                    await context.read<AppState>().addWorkoutEntry(
+                      date: DateTime.now(),
+                      exercise: exercise.text.trim(),
+                      sets: int.parse(sets.text.trim()),
+                      reps: int.parse(reps.text.trim()),
+                      weight: double.parse(weight.text.trim()),
+                    );
+                    if (!context.mounted) return;
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      const SnackBar(content: Text('Workout added')),
+                    );
+                  },
+                  child: const Text('Save workout'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _quickNumberField({
+    required TextEditingController controller,
+    required String label,
+  }) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      decoration: InputDecoration(labelText: label),
+      validator: (value) {
+        final parsed = double.tryParse((value ?? '').trim());
+        if (parsed == null || parsed < 0) return 'Invalid number';
+        return null;
+      },
+    );
+  }
+
   Widget _buildDecorativeBackground(ThemeData theme) {
     final colors = theme.colorScheme;
 
@@ -229,6 +546,11 @@ class _RootShellState extends State<_RootShell> {
                   ),
                 ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openQuickAddSheet,
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('Quick add'),
       ),
       bottomNavigationBar: _buildBottomNav(theme),
     );

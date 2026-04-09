@@ -21,6 +21,7 @@ class AppState extends ChangeNotifier {
   static const _bodyMeasurementKey = 'body_measurements';
   static const _workoutLogsKey = 'workout_logs';
   static const _gymScheduleKey = 'gym_schedule';
+  static const _goalsKey = 'goals';
 
   bool isLoading = true;
 
@@ -31,6 +32,10 @@ class AppState extends ChangeNotifier {
   List<BodyMeasurementEntry> bodyMeasurements = [];
   List<WorkoutEntry> workoutEntries = [];
   List<GymSchedule> gymSchedules = [];
+
+  int dailyCalorieGoal = 2200;
+  double dailyProteinGoal = 140;
+  int weeklyWorkoutGoal = 4;
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -86,6 +91,27 @@ class AppState extends ChangeNotifier {
           ).compareTo(_toMinutes(b.hour, b.minute));
         });
 
+    final goalRaw = prefs.getString(_goalsKey);
+    if (goalRaw != null && goalRaw.isNotEmpty) {
+      try {
+        final parsed = jsonDecode(goalRaw) as Map<String, dynamic>;
+        final calories = (parsed['dailyCalorieGoal'] as num?)?.toInt();
+        final protein = (parsed['dailyProteinGoal'] as num?)?.toDouble();
+        final workouts = (parsed['weeklyWorkoutGoal'] as num?)?.toInt();
+        if (calories != null && calories > 0) {
+          dailyCalorieGoal = calories;
+        }
+        if (protein != null && protein > 0) {
+          dailyProteinGoal = protein;
+        }
+        if (workouts != null && workouts > 0) {
+          weeklyWorkoutGoal = workouts;
+        }
+      } catch (_) {
+        // Keep defaults if persisted data is malformed.
+      }
+    }
+
     isLoading = false;
     notifyListeners();
 
@@ -96,6 +122,18 @@ class AppState extends ChangeNotifier {
   Future<void> _saveList(String key, List<Map<String, dynamic>> data) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(key, data.map(jsonEncode).toList());
+  }
+
+  Future<void> _saveGoals() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _goalsKey,
+      jsonEncode({
+        'dailyCalorieGoal': dailyCalorieGoal,
+        'dailyProteinGoal': dailyProteinGoal,
+        'weeklyWorkoutGoal': weeklyWorkoutGoal,
+      }),
+    );
   }
 
   List<T> _decodeList<T>(
@@ -628,6 +666,18 @@ class AppState extends ChangeNotifier {
       gymSchedules.map((e) => e.toMap()).toList(),
     );
     await NotificationService.instance.scheduleGymReminders(gymSchedules);
+    notifyListeners();
+  }
+
+  Future<void> updateGoals({
+    required int dailyCalories,
+    required double dailyProtein,
+    required int weeklyWorkouts,
+  }) async {
+    dailyCalorieGoal = dailyCalories.clamp(1, 20000);
+    dailyProteinGoal = dailyProtein.clamp(1, 1000);
+    weeklyWorkoutGoal = weeklyWorkouts.clamp(1, 14);
+    await _saveGoals();
     notifyListeners();
   }
 }

@@ -33,6 +33,14 @@ class DashboardPage extends StatelessWidget {
       (sum, meal) => sum + meal.carbs,
     );
     final totalFat = todaysMeals.fold<double>(0, (sum, meal) => sum + meal.fat);
+    final startOfWeek = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).subtract(Duration(days: now.weekday - 1));
+    final weeklyWorkouts = appState.workoutEntries
+        .where((entry) => !entry.date.isBefore(startOfWeek))
+        .length;
 
     final nextMeal = _nextMeal(appState);
     final nextGym = _nextGym(appState.gymSchedules);
@@ -74,6 +82,16 @@ class DashboardPage extends StatelessWidget {
           value: '$totalCalories kcal',
           icon: Icons.local_fire_department_rounded,
           color: accentOrange,
+        ),
+        const SizedBox(height: 12),
+        _GoalProgressCard(
+          consumedCalories: totalCalories,
+          consumedProtein: totalProtein,
+          weeklyWorkouts: weeklyWorkouts,
+          calorieGoal: appState.dailyCalorieGoal,
+          proteinGoal: appState.dailyProteinGoal,
+          workoutGoal: appState.weeklyWorkoutGoal,
+          onEditGoals: () => _openGoalsDialog(context, appState),
         ),
         const SizedBox(height: 12),
         Row(
@@ -179,6 +197,219 @@ class DashboardPage extends StatelessWidget {
 
     if (best == null) return 'No gym reminders configured';
     return '${title ?? 'Gym'} · ${DateFormat('EEE HH:mm').format(best)}';
+  }
+
+  Future<void> _openGoalsDialog(BuildContext context, AppState state) async {
+    final formKey = GlobalKey<FormState>();
+    final calories = TextEditingController(
+      text: state.dailyCalorieGoal.toString(),
+    );
+    final protein = TextEditingController(
+      text: state.dailyProteinGoal.toStringAsFixed(0),
+    );
+    final workouts = TextEditingController(
+      text: state.weeklyWorkoutGoal.toString(),
+    );
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 8,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+          ),
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Edit goals',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: calories,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Daily calorie goal (kcal)',
+                  ),
+                  validator: (value) {
+                    final parsed = int.tryParse((value ?? '').trim());
+                    if (parsed == null || parsed <= 0) return 'Invalid value';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: protein,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Daily protein goal (g)',
+                  ),
+                  validator: (value) {
+                    final parsed = double.tryParse((value ?? '').trim());
+                    if (parsed == null || parsed <= 0) return 'Invalid value';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: workouts,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Workout sessions per week',
+                  ),
+                  validator: (value) {
+                    final parsed = int.tryParse((value ?? '').trim());
+                    if (parsed == null || parsed <= 0) return 'Invalid value';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () async {
+                    if (!formKey.currentState!.validate()) return;
+                    await state.updateGoals(
+                      dailyCalories: int.parse(calories.text.trim()),
+                      dailyProtein: double.parse(protein.text.trim()),
+                      weeklyWorkouts: int.parse(workouts.text.trim()),
+                    );
+                    if (context.mounted) Navigator.pop(context);
+                  },
+                  child: const Text('Save goals'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _GoalProgressCard extends StatelessWidget {
+  const _GoalProgressCard({
+    required this.consumedCalories,
+    required this.consumedProtein,
+    required this.weeklyWorkouts,
+    required this.calorieGoal,
+    required this.proteinGoal,
+    required this.workoutGoal,
+    required this.onEditGoals,
+  });
+
+  final int consumedCalories;
+  final double consumedProtein;
+  final int weeklyWorkouts;
+  final int calorieGoal;
+  final double proteinGoal;
+  final int workoutGoal;
+  final VoidCallback onEditGoals;
+
+  @override
+  Widget build(BuildContext context) {
+    final calorieProgress = calorieGoal <= 0
+        ? 0.0
+        : (consumedCalories / calorieGoal).clamp(0.0, 1.0);
+    final proteinProgress = proteinGoal <= 0
+        ? 0.0
+        : (consumedProtein / proteinGoal).clamp(0.0, 1.0);
+    final workoutProgress = workoutGoal <= 0
+        ? 0.0
+        : (weeklyWorkouts / workoutGoal).clamp(0.0, 1.0);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'Goals progress',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: onEditGoals,
+                  icon: const Icon(Icons.tune_rounded),
+                  label: const Text('Edit'),
+                ),
+              ],
+            ),
+            _ProgressRow(
+              label: 'Calories',
+              value: '$consumedCalories / $calorieGoal kcal',
+              progress: calorieProgress,
+            ),
+            const SizedBox(height: 10),
+            _ProgressRow(
+              label: 'Protein',
+              value:
+                  '${consumedProtein.toStringAsFixed(1)} / ${proteinGoal.toStringAsFixed(0)} g',
+              progress: proteinProgress,
+            ),
+            const SizedBox(height: 10),
+            _ProgressRow(
+              label: 'Workouts this week',
+              value: '$weeklyWorkouts / $workoutGoal sessions',
+              progress: workoutProgress,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProgressRow extends StatelessWidget {
+  const _ProgressRow({
+    required this.label,
+    required this.value,
+    required this.progress,
+  });
+
+  final String label;
+  final String value;
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final clamped = progress.clamp(0.0, 1.0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(label, style: Theme.of(context).textTheme.labelLarge),
+            ),
+            Text(value, style: Theme.of(context).textTheme.bodySmall),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            value: clamped,
+            minHeight: 8,
+            backgroundColor: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest,
+          ),
+        ),
+      ],
+    );
   }
 }
 
