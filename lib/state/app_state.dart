@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/body_measurement_entry.dart';
+import '../models/body_progress_photo.dart';
 import '../models/meal_entry.dart';
 import '../models/user_profile.dart';
 import '../models/workout_entry.dart';
@@ -22,6 +23,7 @@ class AppState extends ChangeNotifier {
   static const _mealItemsKey = 'meal_items';
   static const _mealPlanKey = 'meal_plan';
   static const _bodyMeasurementKey = 'body_measurements';
+  static const _bodyProgressGalleryKey = 'body_progress_gallery';
   static const _workoutLogsKey = 'workout_logs';
   static const _gymScheduleKey = 'gym_schedule';
   static const _goalsKey = 'goals';
@@ -36,6 +38,7 @@ class AppState extends ChangeNotifier {
   List<MealItem> mealItems = [];
   List<MealPlanItem> mealPlanItems = [];
   List<BodyMeasurementEntry> bodyMeasurements = [];
+  List<BodyProgressPhoto> bodyProgressPhotos = [];
   List<WorkoutEntry> workoutEntries = [];
   List<GymSchedule> gymSchedules = [];
   UserProfile? userProfile;
@@ -80,6 +83,11 @@ class AppState extends ChangeNotifier {
       prefs.getStringList(_bodyMeasurementKey),
       (e) => BodyMeasurementEntry.fromMap(e),
     )..sort((a, b) => b.date.compareTo(a.date));
+
+    bodyProgressPhotos = _decodeList(
+      prefs.getStringList(_bodyProgressGalleryKey),
+      (e) => BodyProgressPhoto.fromMap(e),
+    )..sort((a, b) => b.capturedAt.compareTo(a.capturedAt));
 
     workoutEntries = _decodeList(
       prefs.getStringList(_workoutLogsKey),
@@ -214,6 +222,10 @@ class AppState extends ChangeNotifier {
       bodyMeasurements.map((e) => e.toMap()).toList(),
     );
     await _saveList(
+      _bodyProgressGalleryKey,
+      bodyProgressPhotos.map((e) => e.toMap()).toList(),
+    );
+    await _saveList(
       _workoutLogsKey,
       workoutEntries.map((e) => e.toMap()).toList(),
     );
@@ -239,6 +251,9 @@ class AppState extends ChangeNotifier {
     }
     for (final measurement in bodyMeasurements) {
       addPath(measurement.imagePath);
+    }
+    for (final photo in bodyProgressPhotos) {
+      addPath(photo.imagePath);
     }
 
     return paths;
@@ -276,6 +291,13 @@ class AppState extends ChangeNotifier {
       final asset = await _encodeImageAsset(measurement.imagePath);
       if (asset != null) {
         assets['body_measurement_${measurement.id}'] = asset;
+      }
+    }
+
+    for (final photo in bodyProgressPhotos) {
+      final asset = await _encodeImageAsset(photo.imagePath);
+      if (asset != null) {
+        assets['body_gallery_${photo.id}'] = asset;
       }
     }
 
@@ -333,6 +355,7 @@ class AppState extends ChangeNotifier {
         'mealItems': mealItems.map((e) => e.toMap()).toList(),
         'mealPlanItems': mealPlanItems.map((e) => e.toMap()).toList(),
         'bodyMeasurements': bodyMeasurements.map((e) => e.toMap()).toList(),
+        'bodyProgressPhotos': bodyProgressPhotos.map((e) => e.toMap()).toList(),
         'workoutEntries': workoutEntries.map((e) => e.toMap()).toList(),
         'gymSchedules': gymSchedules.map((e) => e.toMap()).toList(),
         'userProfile': userProfile?.toMap(),
@@ -431,6 +454,30 @@ class AppState extends ChangeNotifier {
     }
     importedBodyMeasurements.sort((a, b) => b.date.compareTo(a.date));
 
+    final importedBodyProgressPhotos = <BodyProgressPhoto>[];
+    for (final photoMap in _parseBackupList(
+      payload['bodyProgressPhotos'],
+      'bodyProgressPhotos',
+    )) {
+      final restoredImagePath = await _restoreImageAsset(
+        assetKey: 'body_gallery_${photoMap['id']}',
+        assets: assets,
+        assetDirectory: assetDirectory,
+      );
+      if (restoredImagePath == null || restoredImagePath.isEmpty) {
+        continue;
+      }
+      importedBodyProgressPhotos.add(
+        BodyProgressPhoto.fromMap({
+          ...photoMap,
+          'imagePath': restoredImagePath,
+        }),
+      );
+    }
+    importedBodyProgressPhotos.sort(
+      (a, b) => b.capturedAt.compareTo(a.capturedAt),
+    );
+
     final importedWorkoutEntries =
         _parseBackupList(
             payload['workoutEntries'],
@@ -498,6 +545,7 @@ class AppState extends ChangeNotifier {
     mealItems = importedMealItems;
     mealPlanItems = importedMealPlanItems;
     bodyMeasurements = importedBodyMeasurements;
+    bodyProgressPhotos = importedBodyProgressPhotos;
     workoutEntries = importedWorkoutEntries;
     gymSchedules = importedGymSchedules;
     userProfile = importedUserProfile;
@@ -884,6 +932,44 @@ class AppState extends ChangeNotifier {
     await _saveList(
       _bodyMeasurementKey,
       bodyMeasurements.map((e) => e.toMap()).toList(),
+    );
+    await _deleteLocalImageIfObsolete(imagePath, null);
+    notifyListeners();
+  }
+
+  Future<void> addBodyProgressPhoto({
+    required String imagePath,
+    DateTime? capturedAt,
+  }) async {
+    bodyProgressPhotos.insert(
+      0,
+      BodyProgressPhoto(
+        id: _id(),
+        imagePath: imagePath,
+        capturedAt: capturedAt ?? DateTime.now(),
+      ),
+    );
+    bodyProgressPhotos.sort((a, b) => b.capturedAt.compareTo(a.capturedAt));
+    await _saveList(
+      _bodyProgressGalleryKey,
+      bodyProgressPhotos.map((e) => e.toMap()).toList(),
+    );
+    notifyListeners();
+  }
+
+  Future<void> removeBodyProgressPhoto(String id) async {
+    String? imagePath;
+    for (final photo in bodyProgressPhotos) {
+      if (photo.id == id) {
+        imagePath = photo.imagePath;
+        break;
+      }
+    }
+
+    bodyProgressPhotos.removeWhere((e) => e.id == id);
+    await _saveList(
+      _bodyProgressGalleryKey,
+      bodyProgressPhotos.map((e) => e.toMap()).toList(),
     );
     await _deleteLocalImageIfObsolete(imagePath, null);
     notifyListeners();
