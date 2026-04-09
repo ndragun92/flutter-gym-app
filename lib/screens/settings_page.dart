@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -24,19 +25,18 @@ class _SettingsPageState extends State<SettingsPage> {
   DateTime? _birthDate;
   String? _selectedImagePath;
   bool _initialized = false;
+  bool _isImportExportBusy = false;
+  static const XTypeGroup _jsonTypeGroup = XTypeGroup(
+    label: 'JSON',
+    extensions: ['json'],
+  );
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_initialized) return;
 
-    final profile = context.read<AppState>().userProfile;
-    if (profile != null) {
-      _fullNameController.text = profile.fullName;
-      _heightController.text = profile.heightCm.toStringAsFixed(1);
-      _birthDate = profile.birthDate;
-      _selectedImagePath = profile.profileImagePath;
-    }
+    _syncFormWithProfileFromAppState(context.read<AppState>());
 
     _initialized = true;
   }
@@ -46,6 +46,14 @@ class _SettingsPageState extends State<SettingsPage> {
     _fullNameController.dispose();
     _heightController.dispose();
     super.dispose();
+  }
+
+  void _syncFormWithProfileFromAppState(AppState appState) {
+    final profile = appState.userProfile;
+    _fullNameController.text = profile?.fullName ?? '';
+    _heightController.text = profile?.heightCm.toStringAsFixed(1) ?? '';
+    _birthDate = profile?.birthDate;
+    _selectedImagePath = profile?.profileImagePath;
   }
 
   @override
@@ -178,6 +186,31 @@ class _SettingsPageState extends State<SettingsPage> {
                       onPressed: _saveProfile,
                       child: const Text('Save profile'),
                     ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: _isImportExportBusy ? null : _exportData,
+                          icon: _isImportExportBusy
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.download_rounded),
+                          label: const Text('Export data'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: _isImportExportBusy ? null : _importData,
+                          icon: const Icon(Icons.upload_file_rounded),
+                          label: const Text('Import data'),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -255,6 +288,112 @@ class _SettingsPageState extends State<SettingsPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Profile saved')));
+  }
+
+  Future<void> _exportData() async {
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final appState = context.read<AppState>();
+
+    setState(() {
+      _isImportExportBusy = true;
+    });
+
+    try {
+      final json = await appState.exportBackupJson();
+      final suggestedName =
+          'birdle_backup_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.json';
+      final location = await getSaveLocation(
+        suggestedName: suggestedName,
+        acceptedTypeGroups: const [_jsonTypeGroup],
+      );
+      if (location != null) {
+        await File(location.path).writeAsString(json);
+        if (mounted) {
+          scaffoldMessenger.showSnackBar(
+            SnackBar(content: Text('Data exported to ${location.path}')),
+          );
+        }
+      }
+    } catch (error) {
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(content: Text('Export failed: $error')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isImportExportBusy = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _importData() async {
+    final appState = context.read<AppState>();
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+    final shouldImport =
+        await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Import data?'),
+            content: const Text(
+              'Importing will fully replace your current app data with the contents of the selected backup file.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Import'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!shouldImport) return;
+
+    setState(() {
+      _isImportExportBusy = true;
+    });
+
+    try {
+      final file = await openFile(acceptedTypeGroups: const [_jsonTypeGroup]);
+      if (file != null) {
+        final content = await file.readAsString();
+        await appState.importBackupJson(content);
+
+        if (mounted) {
+          setState(() {
+            _syncFormWithProfileFromAppState(appState);
+          });
+          scaffoldMessenger.showSnackBar(
+            const SnackBar(content: Text('Data imported successfully')),
+          );
+        }
+      }
+    } on FormatException catch (error) {
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(content: Text('Import failed: ${error.message}')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(content: Text('Import failed: $error')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isImportExportBusy = false;
+        });
+      }
+    }
   }
 
   Future<String> _persistProfileImage(String sourcePath) async {

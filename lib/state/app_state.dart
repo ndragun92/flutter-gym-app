@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/body_measurement_entry.dart';
@@ -25,6 +26,8 @@ class AppState extends ChangeNotifier {
   static const _gymScheduleKey = 'gym_schedule';
   static const _goalsKey = 'goals';
   static const _userProfileKey = 'user_profile';
+  static const _backupVersion = 1;
+  static const _profileImageAssetKey = 'profile_image';
 
   bool isLoading = true;
 
@@ -196,6 +199,321 @@ class AppState extends ChangeNotifier {
       return;
     }
     await prefs.setString(_userProfileKey, userProfile!.toJson());
+  }
+
+  Future<void> _saveAllState() async {
+    await _saveList(_mealLogsKey, mealEntries.map((e) => e.toMap()).toList());
+    await _saveList(
+      _mealScheduleKey,
+      mealSchedules.map((e) => e.toMap()).toList(),
+    );
+    await _saveList(_mealItemsKey, mealItems.map((e) => e.toMap()).toList());
+    await _saveList(_mealPlanKey, mealPlanItems.map((e) => e.toMap()).toList());
+    await _saveList(
+      _bodyMeasurementKey,
+      bodyMeasurements.map((e) => e.toMap()).toList(),
+    );
+    await _saveList(
+      _workoutLogsKey,
+      workoutEntries.map((e) => e.toMap()).toList(),
+    );
+    await _saveList(
+      _gymScheduleKey,
+      gymSchedules.map((e) => e.toMap()).toList(),
+    );
+    await _saveUserProfile();
+    await _saveGoals();
+  }
+
+  Set<String> _collectReferencedImagePaths() {
+    final paths = <String>{};
+
+    void addPath(String? path) {
+      if (path == null || path.isEmpty) return;
+      paths.add(path);
+    }
+
+    addPath(userProfile?.profileImagePath);
+    for (final item in mealItems) {
+      addPath(item.imagePath);
+    }
+    for (final measurement in bodyMeasurements) {
+      addPath(measurement.imagePath);
+    }
+
+    return paths;
+  }
+
+  Future<Map<String, dynamic>?> _encodeImageAsset(String? path) async {
+    if (path == null || path.isEmpty) return null;
+
+    final file = File(path);
+    if (!await file.exists()) return null;
+
+    final fileName = path.split(Platform.pathSeparator).last;
+    return {
+      'fileName': fileName,
+      'bytesBase64': base64Encode(await file.readAsBytes()),
+    };
+  }
+
+  Future<Map<String, dynamic>> _buildBackupAssets() async {
+    final assets = <String, dynamic>{};
+
+    final profileAsset = await _encodeImageAsset(userProfile?.profileImagePath);
+    if (profileAsset != null) {
+      assets[_profileImageAssetKey] = profileAsset;
+    }
+
+    for (final item in mealItems) {
+      final asset = await _encodeImageAsset(item.imagePath);
+      if (asset != null) {
+        assets['meal_item_${item.id}'] = asset;
+      }
+    }
+
+    for (final measurement in bodyMeasurements) {
+      final asset = await _encodeImageAsset(measurement.imagePath);
+      if (asset != null) {
+        assets['body_measurement_${measurement.id}'] = asset;
+      }
+    }
+
+    return assets;
+  }
+
+  List<Map<String, dynamic>> _parseBackupList(Object? raw, String fieldName) {
+    if (raw == null) return const [];
+    if (raw is! List) {
+      throw FormatException('Invalid backup field: $fieldName');
+    }
+
+    return raw.map((entry) {
+      if (entry is! Map) {
+        throw FormatException('Invalid backup item in $fieldName');
+      }
+      return Map<String, dynamic>.from(entry);
+    }).toList();
+  }
+
+  String _safeAssetFileName(String assetKey, String? originalFileName) {
+    final extension = originalFileName != null && originalFileName.contains('.')
+        ? originalFileName.substring(originalFileName.lastIndexOf('.'))
+        : '.bin';
+    final safeKey = assetKey.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+    return '$safeKey$extension';
+  }
+
+  Future<String?> _restoreImageAsset({
+    required String assetKey,
+    required Map<String, dynamic> assets,
+    required Directory assetDirectory,
+  }) async {
+    final rawAsset = assets[assetKey];
+    if (rawAsset is! Map) return null;
+
+    final asset = Map<String, dynamic>.from(rawAsset);
+    final bytesBase64 = asset['bytesBase64'] as String?;
+    if (bytesBase64 == null || bytesBase64.isEmpty) return null;
+
+    final fileName = _safeAssetFileName(assetKey, asset['fileName'] as String?);
+    final file = File('${assetDirectory.path}/$fileName');
+    await file.writeAsBytes(base64Decode(bytesBase64), flush: true);
+    return file.path;
+  }
+
+  Future<String> exportBackupJson() async {
+    final assets = await _buildBackupAssets();
+    return jsonEncode({
+      'version': _backupVersion,
+      'exportedAt': DateTime.now().toIso8601String(),
+      'payload': {
+        'mealEntries': mealEntries.map((e) => e.toMap()).toList(),
+        'mealSchedules': mealSchedules.map((e) => e.toMap()).toList(),
+        'mealItems': mealItems.map((e) => e.toMap()).toList(),
+        'mealPlanItems': mealPlanItems.map((e) => e.toMap()).toList(),
+        'bodyMeasurements': bodyMeasurements.map((e) => e.toMap()).toList(),
+        'workoutEntries': workoutEntries.map((e) => e.toMap()).toList(),
+        'gymSchedules': gymSchedules.map((e) => e.toMap()).toList(),
+        'userProfile': userProfile?.toMap(),
+        'goals': {
+          'dailyCalorieGoal': dailyCalorieGoal,
+          'dailyProteinGoal': dailyProteinGoal,
+          'weeklyWorkoutGoal': weeklyWorkoutGoal,
+        },
+      },
+      'assets': assets,
+    });
+  }
+
+  Future<void> importBackupJson(String source) async {
+    final decoded = jsonDecode(source);
+    if (decoded is! Map) {
+      throw const FormatException('Invalid backup file');
+    }
+
+    final backup = Map<String, dynamic>.from(decoded);
+    final version = (backup['version'] as num?)?.toInt();
+    if (version != _backupVersion) {
+      throw FormatException('Unsupported backup version: $version');
+    }
+
+    final rawPayload = backup['payload'];
+    if (rawPayload is! Map) {
+      throw const FormatException('Missing backup payload');
+    }
+
+    final payload = Map<String, dynamic>.from(rawPayload);
+    final assets = backup['assets'] is Map
+        ? Map<String, dynamic>.from(backup['assets'] as Map)
+        : <String, dynamic>{};
+
+    final previousImagePaths = _collectReferencedImagePaths();
+    final documentsDirectory = await getApplicationDocumentsDirectory();
+    final assetDirectory = Directory(
+      '${documentsDirectory.path}/imported_assets',
+    );
+    if (!await assetDirectory.exists()) {
+      await assetDirectory.create(recursive: true);
+    }
+
+    final importedMealEntries =
+        _parseBackupList(
+            payload['mealEntries'],
+            'mealEntries',
+          ).map(MealEntry.fromMap).toList()
+          ..sort((a, b) => b.ateAt.compareTo(a.ateAt));
+
+    final importedMealSchedules =
+        _parseBackupList(
+          payload['mealSchedules'],
+          'mealSchedules',
+        ).map(MealSchedule.fromMap).toList()..sort(
+          (a, b) => _toMinutes(
+            a.hour,
+            a.minute,
+          ).compareTo(_toMinutes(b.hour, b.minute)),
+        );
+
+    final importedMealItems = <MealItem>[];
+    for (final itemMap in _parseBackupList(payload['mealItems'], 'mealItems')) {
+      final restoredImagePath = await _restoreImageAsset(
+        assetKey: 'meal_item_${itemMap['id']}',
+        assets: assets,
+        assetDirectory: assetDirectory,
+      );
+      importedMealItems.add(
+        MealItem.fromMap({...itemMap, 'imagePath': restoredImagePath}),
+      );
+    }
+
+    final importedMealPlanItems = _parseBackupList(
+      payload['mealPlanItems'],
+      'mealPlanItems',
+    ).map(MealPlanItem.fromMap).toList();
+
+    final importedBodyMeasurements = <BodyMeasurementEntry>[];
+    for (final measurementMap in _parseBackupList(
+      payload['bodyMeasurements'],
+      'bodyMeasurements',
+    )) {
+      final restoredImagePath = await _restoreImageAsset(
+        assetKey: 'body_measurement_${measurementMap['id']}',
+        assets: assets,
+        assetDirectory: assetDirectory,
+      );
+      importedBodyMeasurements.add(
+        BodyMeasurementEntry.fromMap({
+          ...measurementMap,
+          'imagePath': restoredImagePath,
+        }),
+      );
+    }
+    importedBodyMeasurements.sort((a, b) => b.date.compareTo(a.date));
+
+    final importedWorkoutEntries =
+        _parseBackupList(
+            payload['workoutEntries'],
+            'workoutEntries',
+          ).map(WorkoutEntry.fromMap).toList()
+          ..sort((a, b) => b.date.compareTo(a.date));
+
+    final importedGymSchedules =
+        _parseBackupList(
+          payload['gymSchedules'],
+          'gymSchedules',
+        ).map(GymSchedule.fromMap).toList()..sort((a, b) {
+          final byDay = a.weekday.compareTo(b.weekday);
+          if (byDay != 0) return byDay;
+          return _toMinutes(
+            a.hour,
+            a.minute,
+          ).compareTo(_toMinutes(b.hour, b.minute));
+        });
+
+    UserProfile? importedUserProfile;
+    final rawProfile = payload['userProfile'];
+    if (rawProfile != null) {
+      if (rawProfile is! Map) {
+        throw const FormatException('Invalid backup field: userProfile');
+      }
+      final profileMap = Map<String, dynamic>.from(rawProfile);
+      final restoredProfileImagePath = await _restoreImageAsset(
+        assetKey: _profileImageAssetKey,
+        assets: assets,
+        assetDirectory: assetDirectory,
+      );
+      importedUserProfile = UserProfile.fromMap({
+        ...profileMap,
+        'profileImagePath': restoredProfileImagePath,
+      });
+    }
+
+    dailyCalorieGoal = 2500;
+    dailyProteinGoal = 190;
+    weeklyWorkoutGoal = 4;
+
+    final rawGoals = payload['goals'];
+    if (rawGoals != null) {
+      if (rawGoals is! Map) {
+        throw const FormatException('Invalid backup field: goals');
+      }
+      final goals = Map<String, dynamic>.from(rawGoals);
+      final calories = (goals['dailyCalorieGoal'] as num?)?.toInt();
+      final protein = (goals['dailyProteinGoal'] as num?)?.toDouble();
+      final workouts = (goals['weeklyWorkoutGoal'] as num?)?.toInt();
+      if (calories != null && calories > 0) {
+        dailyCalorieGoal = calories;
+      }
+      if (protein != null && protein > 0) {
+        dailyProteinGoal = protein;
+      }
+      if (workouts != null && workouts > 0) {
+        weeklyWorkoutGoal = workouts;
+      }
+    }
+
+    mealEntries = importedMealEntries;
+    mealSchedules = importedMealSchedules;
+    mealItems = importedMealItems;
+    mealPlanItems = importedMealPlanItems;
+    bodyMeasurements = importedBodyMeasurements;
+    workoutEntries = importedWorkoutEntries;
+    gymSchedules = importedGymSchedules;
+    userProfile = importedUserProfile;
+    _recalculateMealPlanTotals();
+
+    await _saveAllState();
+
+    final importedImagePaths = _collectReferencedImagePaths();
+    for (final previousPath in previousImagePaths) {
+      if (!importedImagePaths.contains(previousPath)) {
+        await _deleteLocalImageIfObsolete(previousPath, null);
+      }
+    }
+
+    notifyListeners();
+    unawaited(_syncAllScheduleNotifications());
   }
 
   List<T> _decodeList<T>(
