@@ -39,25 +39,6 @@ class WorkoutPage extends StatelessWidget {
           const SizedBox(height: 100),
         ],
       ),
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          FloatingActionButton.extended(
-            heroTag: 'gym_schedule',
-            onPressed: () => _openAddGymSchedule(context),
-            icon: const Icon(Icons.calendar_today_rounded),
-            label: const Text('Add gym day'),
-          ),
-          const SizedBox(height: 12),
-          FloatingActionButton.extended(
-            heroTag: 'workout_entry',
-            onPressed: () => _openAddWorkoutDialog(context),
-            icon: const Icon(Icons.add_chart_rounded),
-            label: const Text('Add lift'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -68,9 +49,20 @@ class WorkoutPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Gym schedule',
-              style: Theme.of(context).textTheme.titleMedium,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Gym schedule',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Add gym day',
+                  onPressed: () => _openAddGymSchedule(context),
+                  icon: const Icon(Icons.add_rounded),
+                ),
+              ],
             ),
             const SizedBox(height: 10),
             if (appState.gymSchedules.isEmpty)
@@ -176,7 +168,21 @@ class WorkoutPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Workout log', style: Theme.of(context).textTheme.titleMedium),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Workout log',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Add lift',
+                  onPressed: () => _openAddWorkoutDialog(context),
+                  icon: const Icon(Icons.add_rounded),
+                ),
+              ],
+            ),
             const SizedBox(height: 10),
             if (appState.workoutEntries.isEmpty)
               Text(
