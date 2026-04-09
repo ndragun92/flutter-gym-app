@@ -119,11 +119,13 @@ class MealSchedule {
   }
 
   factory MealSchedule.fromMap(Map<String, dynamic> map) {
+    final parsedHour = (map['hour'] as num?)?.toInt() ?? 9;
+    final parsedMinute = (map['minute'] as num?)?.toInt() ?? 0;
     return MealSchedule(
       id: map['id'] as String,
       title: map['title'] as String,
-      hour: map['hour'] as int,
-      minute: map['minute'] as int,
+      hour: parsedHour.clamp(0, 23),
+      minute: parsedMinute.clamp(0, 59),
       enabled: map['enabled'] as bool? ?? true,
     );
   }

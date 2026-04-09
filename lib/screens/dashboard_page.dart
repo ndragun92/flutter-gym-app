@@ -122,20 +122,26 @@ class DashboardPage extends StatelessWidget {
 
   String _nextMeal(AppState appState) {
     final now = DateTime.now();
-    if (appState.mealSchedules.where((m) => m.enabled).isEmpty) {
+    final enabled = appState.mealSchedules.where((m) => m.enabled).toList();
+    if (enabled.isEmpty) {
       return 'No meal reminders configured';
     }
 
     DateTime? best;
     String? title;
-
-    for (final item in appState.mealSchedules.where((m) => m.enabled)) {
-      var date = DateTime(now.year, now.month, now.day, item.hour, item.minute);
-      if (date.isBefore(now)) {
-        date = date.add(const Duration(days: 1));
+    for (final item in enabled) {
+      var candidate = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        item.hour,
+        item.minute,
+      );
+      if (candidate.isBefore(now)) {
+        candidate = candidate.add(const Duration(days: 1));
       }
-      if (best == null || date.isBefore(best)) {
-        best = date;
+      if (best == null || candidate.isBefore(best)) {
+        best = candidate;
         title = item.title;
       }
     }

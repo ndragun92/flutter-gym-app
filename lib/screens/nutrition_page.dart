@@ -121,7 +121,7 @@ class _NutritionPageState extends State<NutritionPage> {
                     child: Icon(Icons.access_time_rounded),
                   ),
                   title: Text(s.title),
-                  subtitle: Text(s.formattedTime),
+                  subtitle: Text('Every day at ${s.formattedTime}'),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -418,7 +418,9 @@ class _NutritionPageState extends State<NutritionPage> {
                     const SizedBox(height: 10),
                     OutlinedButton.icon(
                       icon: const Icon(Icons.schedule_rounded),
-                      label: Text(selectedTime.format(context)),
+                      label: Text(
+                        'Every day at ${selectedTime.format(context)}',
+                      ),
                       onPressed: () async {
                         final picked = await showTimePicker(
                           context: context,

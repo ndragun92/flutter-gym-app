@@ -77,7 +77,7 @@ class NotificationService {
 
     for (final schedule in schedules.where((m) => m.enabled)) {
       final id = 10_000 + schedule.id.hashCode.abs() % 9_999;
-      final firstDate = _nextOccurrence(
+      final firstDate = _nextDailyMealOccurrence(
         hour: schedule.hour,
         minute: schedule.minute,
       );
@@ -142,7 +142,10 @@ class NotificationService {
     }
   }
 
-  tz.TZDateTime _nextOccurrence({required int hour, required int minute}) {
+  tz.TZDateTime _nextDailyMealOccurrence({
+    required int hour,
+    required int minute,
+  }) {
     final now = tz.TZDateTime.now(tz.local);
     var scheduled = tz.TZDateTime(
       tz.local,
