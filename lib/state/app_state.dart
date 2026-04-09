@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -127,8 +128,34 @@ class AppState extends ChangeNotifier {
     isLoading = false;
     notifyListeners();
 
-    await NotificationService.instance.scheduleMealReminders(mealSchedules);
-    await NotificationService.instance.scheduleGymReminders(gymSchedules);
+    unawaited(_syncAllScheduleNotifications());
+  }
+
+  Future<void> _syncAllScheduleNotifications() async {
+    await _syncMealScheduleNotifications();
+    await _syncGymScheduleNotifications();
+  }
+
+  Future<void> _syncMealScheduleNotifications() async {
+    try {
+      await NotificationService.instance.scheduleMealReminders(
+        List<MealSchedule>.unmodifiable(mealSchedules),
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Failed to sync meal reminders: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+  Future<void> _syncGymScheduleNotifications() async {
+    try {
+      await NotificationService.instance.scheduleGymReminders(
+        List<GymSchedule>.unmodifiable(gymSchedules),
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Failed to sync gym reminders: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
   }
 
   Future<void> _saveList(String key, List<Map<String, dynamic>> data) async {
@@ -420,8 +447,8 @@ class AppState extends ChangeNotifier {
       _mealScheduleKey,
       mealSchedules.map((e) => e.toMap()).toList(),
     );
-    await NotificationService.instance.scheduleMealReminders(mealSchedules);
     notifyListeners();
+    unawaited(_syncMealScheduleNotifications());
   }
 
   Future<void> toggleMealSchedule(String id, bool enabled) async {
@@ -432,8 +459,8 @@ class AppState extends ChangeNotifier {
       _mealScheduleKey,
       mealSchedules.map((e) => e.toMap()).toList(),
     );
-    await NotificationService.instance.scheduleMealReminders(mealSchedules);
     notifyListeners();
+    unawaited(_syncMealScheduleNotifications());
   }
 
   Future<void> updateMealSchedule({
@@ -457,8 +484,8 @@ class AppState extends ChangeNotifier {
       _mealScheduleKey,
       mealSchedules.map((e) => e.toMap()).toList(),
     );
-    await NotificationService.instance.scheduleMealReminders(mealSchedules);
     notifyListeners();
+    unawaited(_syncMealScheduleNotifications());
   }
 
   Future<void> removeMealSchedule(String id) async {
@@ -467,8 +494,8 @@ class AppState extends ChangeNotifier {
       _mealScheduleKey,
       mealSchedules.map((e) => e.toMap()).toList(),
     );
-    await NotificationService.instance.scheduleMealReminders(mealSchedules);
     notifyListeners();
+    unawaited(_syncMealScheduleNotifications());
   }
 
   Future<void> addBodyMeasurement({
@@ -619,8 +646,8 @@ class AppState extends ChangeNotifier {
       _gymScheduleKey,
       gymSchedules.map((e) => e.toMap()).toList(),
     );
-    await NotificationService.instance.scheduleGymReminders(gymSchedules);
     notifyListeners();
+    unawaited(_syncGymScheduleNotifications());
   }
 
   Future<void> updateGymSchedule({
@@ -655,8 +682,8 @@ class AppState extends ChangeNotifier {
       _gymScheduleKey,
       gymSchedules.map((e) => e.toMap()).toList(),
     );
-    await NotificationService.instance.scheduleGymReminders(gymSchedules);
     notifyListeners();
+    unawaited(_syncGymScheduleNotifications());
   }
 
   Future<void> toggleGymSchedule(String id, bool enabled) async {
@@ -667,8 +694,8 @@ class AppState extends ChangeNotifier {
       _gymScheduleKey,
       gymSchedules.map((e) => e.toMap()).toList(),
     );
-    await NotificationService.instance.scheduleGymReminders(gymSchedules);
     notifyListeners();
+    unawaited(_syncGymScheduleNotifications());
   }
 
   Future<void> removeGymSchedule(String id) async {
@@ -677,8 +704,8 @@ class AppState extends ChangeNotifier {
       _gymScheduleKey,
       gymSchedules.map((e) => e.toMap()).toList(),
     );
-    await NotificationService.instance.scheduleGymReminders(gymSchedules);
     notifyListeners();
+    unawaited(_syncGymScheduleNotifications());
   }
 
   Future<void> updateGoals({

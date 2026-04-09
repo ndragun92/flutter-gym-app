@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest.dart' as tz;
@@ -82,7 +83,7 @@ class NotificationService {
         minute: schedule.minute,
       );
 
-      await _plugin.zonedSchedule(
+      await _scheduleWithFallback(
         id,
         'Meal reminder',
         'Time for ${schedule.title}',
@@ -97,7 +98,6 @@ class NotificationService {
           ),
           iOS: DarwinNotificationDetails(),
         ),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         matchDateTimeComponents: DateTimeComponents.time,
       );
     }
@@ -115,7 +115,7 @@ class NotificationService {
         minute: schedule.minute,
       );
 
-      await _plugin.zonedSchedule(
+      await _scheduleWithFallback(
         id,
         'Gym reminder',
         'Workout: ${schedule.title}',
@@ -130,8 +130,42 @@ class NotificationService {
           ),
           iOS: DarwinNotificationDetails(),
         ),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
+      );
+    }
+  }
+
+  Future<void> _scheduleWithFallback(
+    int id,
+    String? title,
+    String? body,
+    tz.TZDateTime scheduledDate,
+    NotificationDetails notificationDetails, {
+    required DateTimeComponents? matchDateTimeComponents,
+  }) async {
+    try {
+      await _plugin.zonedSchedule(
+        id,
+        title,
+        body,
+        scheduledDate,
+        notificationDetails,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        matchDateTimeComponents: matchDateTimeComponents,
+      );
+    } on PlatformException catch (error, stackTrace) {
+      debugPrint(
+        'Exact notification scheduling unavailable, retrying inexactly: $error',
+      );
+      debugPrintStack(stackTrace: stackTrace);
+      await _plugin.zonedSchedule(
+        id,
+        title,
+        body,
+        scheduledDate,
+        notificationDetails,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        matchDateTimeComponents: matchDateTimeComponents,
       );
     }
   }
