@@ -257,7 +257,9 @@ class _NutritionPageState extends State<NutritionPage> {
             else
               ...state.mealItems.map((item) {
                 final hasPhoto =
-                    item.imagePath != null && item.imagePath!.isNotEmpty;
+                    item.imagePath != null &&
+                    item.imagePath!.isNotEmpty &&
+                    File(item.imagePath!).existsSync();
                 return ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: CircleAvatar(
@@ -618,7 +620,9 @@ class _NutritionPageState extends State<NutritionPage> {
           child: StatefulBuilder(
             builder: (context, setModalState) {
               final hasImage =
-                  selectedImagePath != null && selectedImagePath!.isNotEmpty;
+                  selectedImagePath != null &&
+                  selectedImagePath!.isNotEmpty &&
+                  File(selectedImagePath!).existsSync();
 
               return Form(
                 key: formKey,
