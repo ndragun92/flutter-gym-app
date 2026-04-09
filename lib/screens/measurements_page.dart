@@ -124,17 +124,24 @@ class MeasurementsPage extends StatelessWidget {
                         },
                       ),
                       const SizedBox(height: 10),
-                      _numField(weight, 'Weight (kg)', requiredField: true),
+                      _twoColumnFields(
+                        left: _numField(
+                          weight,
+                          'Weight (kg)',
+                          requiredField: true,
+                        ),
+                        right: _numField(waist, 'Waist (cm)'),
+                      ),
                       const SizedBox(height: 10),
-                      _numField(waist, 'Waist (cm)'),
+                      _twoColumnFields(
+                        left: _numField(chest, 'Chest (cm)'),
+                        right: _numField(hips, 'Hips (cm)'),
+                      ),
                       const SizedBox(height: 10),
-                      _numField(chest, 'Chest (cm)'),
-                      const SizedBox(height: 10),
-                      _numField(hips, 'Hips (cm)'),
-                      const SizedBox(height: 10),
-                      _numField(biceps, 'Biceps (cm)'),
-                      const SizedBox(height: 10),
-                      _numField(thigh, 'Thigh (cm)'),
+                      _twoColumnFields(
+                        left: _numField(biceps, 'Biceps (cm)'),
+                        right: _numField(thigh, 'Thigh (cm)'),
+                      ),
                       const SizedBox(height: 12),
                       Text(
                         'Progress photo',
@@ -146,13 +153,13 @@ class MeasurementsPage extends StatelessWidget {
                           borderRadius: BorderRadius.circular(12),
                           child: Image.file(
                             File(selectedImagePath!),
-                            height: 170,
+                            height: 150,
                             fit: BoxFit.cover,
                           ),
                         )
                       else
                         Container(
-                          height: 115,
+                          height: 94,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
@@ -165,8 +172,8 @@ class MeasurementsPage extends StatelessWidget {
                         ),
                       const SizedBox(height: 10),
                       Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
+                        spacing: 6,
+                        runSpacing: 6,
                         children: [
                           OutlinedButton.icon(
                             icon: const Icon(Icons.camera_alt_rounded),
@@ -274,6 +281,17 @@ class MeasurementsPage extends StatelessWidget {
     );
   }
 
+  Widget _twoColumnFields({required Widget left, required Widget right}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: left),
+        const SizedBox(width: 10),
+        Expanded(child: right),
+      ],
+    );
+  }
+
   Future<String> _persistMeasurementImage(String sourcePath) async {
     final source = File(sourcePath);
     final directory = await getApplicationDocumentsDirectory();
@@ -310,7 +328,7 @@ class _MeasurementCard extends StatelessWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -319,7 +337,7 @@ class _MeasurementCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     DateFormat('d MMM yyyy').format(item.date),
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: Theme.of(context).textTheme.titleSmall,
                   ),
                 ),
                 IconButton(
@@ -335,39 +353,33 @@ class _MeasurementCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                   child: Image.file(
                     File(item.imagePath!),
-                    height: 180,
+                    height: 150,
                     width: double.infinity,
                     fit: BoxFit.cover,
                   ),
                 ),
               ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _chip('Weight', '${item.weight.toStringAsFixed(1)} kg'),
+            _MetricGrid(
+              items: [
+                _MetricItem('Weight', '${item.weight.toStringAsFixed(1)} kg'),
                 if (item.waist != null)
-                  _chip('Waist', '${item.waist!.toStringAsFixed(1)} cm'),
+                  _MetricItem('Waist', '${item.waist!.toStringAsFixed(1)} cm'),
                 if (item.chest != null)
-                  _chip('Chest', '${item.chest!.toStringAsFixed(1)} cm'),
+                  _MetricItem('Chest', '${item.chest!.toStringAsFixed(1)} cm'),
                 if (item.hips != null)
-                  _chip('Hips', '${item.hips!.toStringAsFixed(1)} cm'),
+                  _MetricItem('Hips', '${item.hips!.toStringAsFixed(1)} cm'),
                 if (item.biceps != null)
-                  _chip('Biceps', '${item.biceps!.toStringAsFixed(1)} cm'),
+                  _MetricItem(
+                    'Biceps',
+                    '${item.biceps!.toStringAsFixed(1)} cm',
+                  ),
                 if (item.thigh != null)
-                  _chip('Thigh', '${item.thigh!.toStringAsFixed(1)} cm'),
+                  _MetricItem('Thigh', '${item.thigh!.toStringAsFixed(1)} cm'),
               ],
             ),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _chip(String label, String value) {
-    return Chip(
-      label: Text('$label: $value'),
-      visualDensity: VisualDensity.compact,
     );
   }
 }
@@ -392,29 +404,29 @@ class _ProgressHighlights extends StatelessWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Progress highlights',
-              style: Theme.of(context).textTheme.titleMedium,
+              style: Theme.of(context).textTheme.titleSmall,
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Wrap(
-              spacing: 8,
-              runSpacing: 8,
+              spacing: 6,
+              runSpacing: 6,
               children: [
-                Chip(label: Text('Weight Δ ${_format(weightDelta)} kg')),
+                _DeltaPill('Weight Δ ${_format(weightDelta)} kg'),
                 if (waistDelta != null)
-                  Chip(label: Text('Waist Δ ${_format(waistDelta)} cm')),
+                  _DeltaPill('Waist Δ ${_format(waistDelta)} cm'),
                 if (chestDelta != null)
-                  Chip(label: Text('Chest Δ ${_format(chestDelta)} cm')),
+                  _DeltaPill('Chest Δ ${_format(chestDelta)} cm'),
                 if (hipsDelta != null)
-                  Chip(label: Text('Hips Δ ${_format(hipsDelta)} cm')),
+                  _DeltaPill('Hips Δ ${_format(hipsDelta)} cm'),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             _TrendRow(
               title: 'Weight',
               unit: 'kg',
@@ -515,7 +527,7 @@ class _TrendRow extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: 68,
+            width: 60,
             child: Text(title, style: Theme.of(context).textTheme.bodyMedium),
           ),
           Expanded(child: _MiniBars(values: values)),
@@ -523,7 +535,7 @@ class _TrendRow extends StatelessWidget {
           Icon(icon, color: iconColor),
           const SizedBox(width: 4),
           SizedBox(
-            width: 64,
+            width: 58,
             child: Text(
               deltaText,
               textAlign: TextAlign.right,
@@ -550,15 +562,15 @@ class _MiniBars extends StatelessWidget {
     final range = (max - min).abs();
 
     return SizedBox(
-      height: 34,
+      height: 28,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: recent.map((value) {
           final normalized = range < 0.001 ? 0.5 : (value - min) / range;
-          final barHeight = 8 + (normalized * 22);
+          final barHeight = 7 + (normalized * 17);
           return Expanded(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 1.5),
+              padding: const EdgeInsets.symmetric(horizontal: 1),
               child: Container(
                 height: barHeight,
                 decoration: BoxDecoration(
@@ -570,6 +582,85 @@ class _MiniBars extends StatelessWidget {
           );
         }).toList(),
       ),
+    );
+  }
+}
+
+class _DeltaPill extends StatelessWidget {
+  const _DeltaPill(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(text, style: Theme.of(context).textTheme.labelSmall),
+    );
+  }
+}
+
+class _MetricItem {
+  const _MetricItem(this.label, this.value);
+
+  final String label;
+  final String value;
+}
+
+class _MetricGrid extends StatelessWidget {
+  const _MetricGrid({required this.items});
+
+  final List<_MetricItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const spacing = 6.0;
+        final width = (constraints.maxWidth - spacing) / 2;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: items
+              .map(
+                (item) => SizedBox(
+                  width: width,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item.label,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.labelSmall,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          item.value,
+                          style: Theme.of(context).textTheme.labelMedium,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
+        );
+      },
     );
   }
 }
