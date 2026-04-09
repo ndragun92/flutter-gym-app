@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -213,6 +214,7 @@ class AppState extends ChangeNotifier {
   Future<void> addMealItem({
     required String name,
     required String portion,
+    String? imagePath,
     required int calories,
     required double protein,
     required double carbs,
@@ -223,6 +225,7 @@ class AppState extends ChangeNotifier {
         id: _id(),
         name: name,
         portion: portion,
+        imagePath: imagePath,
         calories: calories,
         protein: protein,
         carbs: carbs,
@@ -239,17 +242,27 @@ class AppState extends ChangeNotifier {
     required String id,
     required String name,
     required String portion,
+    String? imagePath,
     required int calories,
     required double protein,
     required double carbs,
     required double fat,
   }) async {
+    String? previousImagePath;
+    for (final item in mealItems) {
+      if (item.id == id) {
+        previousImagePath = item.imagePath;
+        break;
+      }
+    }
+
     mealItems = mealItems
         .map(
           (e) => e.id == id
               ? e.copyWith(
                   name: name,
                   portion: portion,
+                  imagePath: imagePath,
                   calories: calories,
                   protein: protein,
                   carbs: carbs,
@@ -259,12 +272,21 @@ class AppState extends ChangeNotifier {
         )
         .toList();
     await _saveList(_mealItemsKey, mealItems.map((e) => e.toMap()).toList());
+    await _deleteLocalImageIfObsolete(previousImagePath, imagePath);
     _recalculateMealPlanTotals();
     await _saveList(_mealPlanKey, mealPlanItems.map((e) => e.toMap()).toList());
     notifyListeners();
   }
 
   Future<void> removeMealItem(String id) async {
+    String? imagePath;
+    for (final item in mealItems) {
+      if (item.id == id) {
+        imagePath = item.imagePath;
+        break;
+      }
+    }
+
     mealItems.removeWhere((e) => e.id == id);
     mealPlanItems = mealPlanItems
         .map(
@@ -276,7 +298,24 @@ class AppState extends ChangeNotifier {
     _recalculateMealPlanTotals();
     await _saveList(_mealItemsKey, mealItems.map((e) => e.toMap()).toList());
     await _saveList(_mealPlanKey, mealPlanItems.map((e) => e.toMap()).toList());
+    await _deleteLocalImageIfObsolete(imagePath, null);
     notifyListeners();
+  }
+
+  Future<void> _deleteLocalImageIfObsolete(
+    String? previous,
+    String? current,
+  ) async {
+    if (previous == null || previous.isEmpty) return;
+    if (previous == current) return;
+    try {
+      final file = File(previous);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (_) {
+      // Ignore best-effort file cleanup failures.
+    }
   }
 
   _MealTotals _mealPlanTotalsForItems(List<String> mealItemIds) {

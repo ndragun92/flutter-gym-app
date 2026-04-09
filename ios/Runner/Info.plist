@@ -26,6 +26,12 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Allow camera access to take meal item photos.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Allow photo library access to select meal item photos.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Allow saving photos used for meal item tracking.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

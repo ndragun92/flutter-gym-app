@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+const Object _mealItemImagePathUnset = Object();
+
 class MealEntry {
   MealEntry({
     required this.id,
@@ -137,6 +139,7 @@ class MealItem {
     required this.id,
     required this.name,
     required this.portion,
+    this.imagePath,
     required this.calories,
     required this.protein,
     required this.carbs,
@@ -146,6 +149,7 @@ class MealItem {
   final String id;
   final String name;
   final String portion;
+  final String? imagePath;
   final int calories;
   final double protein;
   final double carbs;
@@ -155,6 +159,7 @@ class MealItem {
     String? id,
     String? name,
     String? portion,
+    Object? imagePath = _mealItemImagePathUnset,
     int? calories,
     double? protein,
     double? carbs,
@@ -164,6 +169,9 @@ class MealItem {
       id: id ?? this.id,
       name: name ?? this.name,
       portion: portion ?? this.portion,
+      imagePath: imagePath == _mealItemImagePathUnset
+          ? this.imagePath
+          : imagePath as String?,
       calories: calories ?? this.calories,
       protein: protein ?? this.protein,
       carbs: carbs ?? this.carbs,
@@ -176,6 +184,7 @@ class MealItem {
       'id': id,
       'name': name,
       'portion': portion,
+      'imagePath': imagePath,
       'calories': calories,
       'protein': protein,
       'carbs': carbs,
@@ -188,6 +197,7 @@ class MealItem {
       id: map['id'] as String,
       name: map['name'] as String,
       portion: (map['portion'] as String?) ?? '',
+      imagePath: map['imagePath'] as String?,
       calories: map['calories'] as int,
       protein: (map['protein'] as num).toDouble(),
       carbs: (map['carbs'] as num).toDouble(),

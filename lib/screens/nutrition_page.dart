@@ -1,5 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
 import '../models/meal_entry.dart';
@@ -252,10 +256,15 @@ class _NutritionPageState extends State<NutritionPage> {
               )
             else
               ...state.mealItems.map((item) {
+                final hasPhoto =
+                    item.imagePath != null && item.imagePath!.isNotEmpty;
                 return ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.egg_alt_rounded),
+                  leading: CircleAvatar(
+                    backgroundImage: hasPhoto
+                        ? FileImage(File(item.imagePath!))
+                        : null,
+                    child: hasPhoto ? null : const Icon(Icons.egg_alt_rounded),
                   ),
                   title: Text(item.name),
                   subtitle: Text(
@@ -591,6 +600,8 @@ class _NutritionPageState extends State<NutritionPage> {
     );
     final carbs = TextEditingController(text: existing?.carbs.toString() ?? '');
     final fat = TextEditingController(text: existing?.fat.toString() ?? '');
+    final imagePicker = ImagePicker();
+    String? selectedImagePath = existing?.imagePath;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -604,83 +615,197 @@ class _NutritionPageState extends State<NutritionPage> {
             top: 8,
             bottom: MediaQuery.of(context).viewInsets.bottom + 16,
           ),
-          child: Form(
-            key: formKey,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    existing == null ? 'Add meal item' : 'Edit meal item',
-                    style: Theme.of(context).textTheme.titleLarge,
+          child: StatefulBuilder(
+            builder: (context, setModalState) {
+              final hasImage =
+                  selectedImagePath != null && selectedImagePath!.isNotEmpty;
+
+              return Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        existing == null ? 'Add meal item' : 'Edit meal item',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: name,
+                        decoration: const InputDecoration(
+                          labelText: 'Item name',
+                        ),
+                        validator: (v) =>
+                            (v == null || v.trim().isEmpty) ? 'Required' : null,
+                      ),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: portion,
+                        decoration: const InputDecoration(
+                          labelText: 'Portion (e.g. 3 eggs, 200g)',
+                        ),
+                        validator: (v) =>
+                            (v == null || v.trim().isEmpty) ? 'Required' : null,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Photo',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 8),
+                      if (hasImage)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.file(
+                            File(selectedImagePath!),
+                            height: 180,
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      else
+                        Container(
+                          height: 120,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Theme.of(context).dividerColor,
+                            ),
+                          ),
+                          child: const Center(
+                            child: Icon(Icons.image_outlined, size: 32),
+                          ),
+                        ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.camera_alt_rounded),
+                            label: const Text('Take photo'),
+                            onPressed: () async {
+                              final shot = await imagePicker.pickImage(
+                                source: ImageSource.camera,
+                                imageQuality: 85,
+                                maxWidth: 1440,
+                              );
+                              if (shot == null) return;
+                              final savedPath = await _persistMealItemImage(
+                                shot.path,
+                              );
+                              if (!context.mounted) return;
+                              setModalState(() {
+                                selectedImagePath = savedPath;
+                              });
+                            },
+                          ),
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.photo_library_outlined),
+                            label: const Text('Upload photo'),
+                            onPressed: () async {
+                              final picked = await imagePicker.pickImage(
+                                source: ImageSource.gallery,
+                                imageQuality: 85,
+                                maxWidth: 1440,
+                              );
+                              if (picked == null) return;
+                              final savedPath = await _persistMealItemImage(
+                                picked.path,
+                              );
+                              if (!context.mounted) return;
+                              setModalState(() {
+                                selectedImagePath = savedPath;
+                              });
+                            },
+                          ),
+                          if (hasImage)
+                            TextButton.icon(
+                              icon: const Icon(Icons.delete_outline_rounded),
+                              label: const Text('Remove photo'),
+                              onPressed: () {
+                                setModalState(() {
+                                  selectedImagePath = null;
+                                });
+                              },
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      _number(
+                        calories,
+                        'Calories (kcal)',
+                        isInt: true,
+                        requiredField: true,
+                      ),
+                      const SizedBox(height: 10),
+                      _number(protein, 'Protein (g)', requiredField: true),
+                      const SizedBox(height: 10),
+                      _number(carbs, 'Carbs (g)', requiredField: true),
+                      const SizedBox(height: 10),
+                      _number(fat, 'Fat (g)', requiredField: true),
+                      const SizedBox(height: 16),
+                      FilledButton(
+                        onPressed: () async {
+                          if (!formKey.currentState!.validate()) return;
+                          if (existing == null) {
+                            await context.read<AppState>().addMealItem(
+                              name: name.text.trim(),
+                              portion: portion.text.trim(),
+                              imagePath: selectedImagePath,
+                              calories: int.parse(calories.text.trim()),
+                              protein: double.parse(protein.text.trim()),
+                              carbs: double.parse(carbs.text.trim()),
+                              fat: double.parse(fat.text.trim()),
+                            );
+                          } else {
+                            await context.read<AppState>().updateMealItem(
+                              id: existing.id,
+                              name: name.text.trim(),
+                              portion: portion.text.trim(),
+                              imagePath: selectedImagePath,
+                              calories: int.parse(calories.text.trim()),
+                              protein: double.parse(protein.text.trim()),
+                              carbs: double.parse(carbs.text.trim()),
+                              fat: double.parse(fat.text.trim()),
+                            );
+                          }
+                          if (context.mounted) Navigator.pop(context);
+                        },
+                        child: Text(
+                          existing == null
+                              ? 'Save meal item'
+                              : 'Update meal item',
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: name,
-                    decoration: const InputDecoration(labelText: 'Item name'),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Required' : null,
-                  ),
-                  const SizedBox(height: 10),
-                  TextFormField(
-                    controller: portion,
-                    decoration: const InputDecoration(
-                      labelText: 'Portion (e.g. 3 eggs, 200g)',
-                    ),
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Required' : null,
-                  ),
-                  const SizedBox(height: 10),
-                  _number(
-                    calories,
-                    'Calories (kcal)',
-                    isInt: true,
-                    requiredField: true,
-                  ),
-                  const SizedBox(height: 10),
-                  _number(protein, 'Protein (g)', requiredField: true),
-                  const SizedBox(height: 10),
-                  _number(carbs, 'Carbs (g)', requiredField: true),
-                  const SizedBox(height: 10),
-                  _number(fat, 'Fat (g)', requiredField: true),
-                  const SizedBox(height: 16),
-                  FilledButton(
-                    onPressed: () async {
-                      if (!formKey.currentState!.validate()) return;
-                      if (existing == null) {
-                        await context.read<AppState>().addMealItem(
-                          name: name.text.trim(),
-                          portion: portion.text.trim(),
-                          calories: int.parse(calories.text.trim()),
-                          protein: double.parse(protein.text.trim()),
-                          carbs: double.parse(carbs.text.trim()),
-                          fat: double.parse(fat.text.trim()),
-                        );
-                      } else {
-                        await context.read<AppState>().updateMealItem(
-                          id: existing.id,
-                          name: name.text.trim(),
-                          portion: portion.text.trim(),
-                          calories: int.parse(calories.text.trim()),
-                          protein: double.parse(protein.text.trim()),
-                          carbs: double.parse(carbs.text.trim()),
-                          fat: double.parse(fat.text.trim()),
-                        );
-                      }
-                      if (context.mounted) Navigator.pop(context);
-                    },
-                    child: Text(
-                      existing == null ? 'Save meal item' : 'Update meal item',
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
         );
       },
     );
+  }
+
+  Future<String> _persistMealItemImage(String sourcePath) async {
+    final source = File(sourcePath);
+    final directory = await getApplicationDocumentsDirectory();
+    final mealItemDir = Directory('${directory.path}/meal_item_images');
+    if (!await mealItemDir.exists()) {
+      await mealItemDir.create(recursive: true);
+    }
+
+    final extension = source.path.contains('.')
+        ? source.path.substring(source.path.lastIndexOf('.'))
+        : '.jpg';
+    final fileName =
+        'meal_item_${DateTime.now().microsecondsSinceEpoch}$extension';
+    final targetPath = '${mealItemDir.path}/$fileName';
+    final copied = await source.copy(targetPath);
+    return copied.path;
   }
 
   Widget _number(
