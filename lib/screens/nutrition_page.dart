@@ -335,7 +335,7 @@ class _NutritionPageState extends State<NutritionPage> {
                 return ExpansionTile(
                   key: ValueKey('${_mealLogResetVersion}_$dayKey'),
                   tilePadding: EdgeInsets.zero,
-                  childrenPadding: EdgeInsets.zero,
+                  childrenPadding: const EdgeInsets.only(top: 4, bottom: 8),
                   initiallyExpanded: dayKey == todayKey,
                   title: Text(
                     dayKey == todayKey
@@ -345,7 +345,7 @@ class _NutritionPageState extends State<NutritionPage> {
                   subtitle: Text('${meals.length} meals · $totalCalories kcal'),
                   children: meals.map((MealEntry meal) {
                     return ListTile(
-                      contentPadding: EdgeInsets.zero,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 4),
                       leading: const CircleAvatar(
                         child: Icon(Icons.fastfood_rounded),
                       ),
