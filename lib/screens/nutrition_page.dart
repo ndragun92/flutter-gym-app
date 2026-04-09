@@ -9,6 +9,8 @@ import 'package:provider/provider.dart';
 import '../models/meal_entry.dart';
 import '../state/app_state.dart';
 
+enum _NutritionCardAction { log, edit, delete }
+
 class NutritionPage extends StatefulWidget {
   const NutritionPage({super.key, this.isActive = true});
 
@@ -129,14 +131,40 @@ class _NutritionPageState extends State<NutritionPage> {
                         value: s.enabled,
                         onChanged: (v) => state.toggleMealSchedule(s.id, v),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.edit_outlined),
-                        onPressed: () =>
-                            _openAddOrEditScheduleDialog(context, existing: s),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline_rounded),
-                        onPressed: () => state.removeMealSchedule(s.id),
+                      PopupMenuButton<_NutritionCardAction>(
+                        tooltip: 'More actions',
+                        icon: const Icon(Icons.more_vert_rounded),
+                        onSelected: (action) {
+                          switch (action) {
+                            case _NutritionCardAction.log:
+                              break;
+                            case _NutritionCardAction.edit:
+                              _openAddOrEditScheduleDialog(
+                                context,
+                                existing: s,
+                              );
+                            case _NutritionCardAction.delete:
+                              state.removeMealSchedule(s.id);
+                          }
+                        },
+                        itemBuilder: (context) => const [
+                          PopupMenuItem<_NutritionCardAction>(
+                            value: _NutritionCardAction.edit,
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.edit_outlined),
+                              title: Text('Edit'),
+                            ),
+                          ),
+                          PopupMenuItem<_NutritionCardAction>(
+                            value: _NutritionCardAction.delete,
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.delete_outline_rounded),
+                              title: Text('Delete'),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -189,13 +217,12 @@ class _NutritionPageState extends State<NutritionPage> {
                     '${mealPlan.mealItemIds.length} items · ${mealPlan.calories} kcal · P ${mealPlan.protein.toStringAsFixed(1)} · C ${mealPlan.carbs.toStringAsFixed(1)} · F ${mealPlan.fat.toStringAsFixed(1)}\n${mealPlan.mealItemIds.map((id) => mealItemsById[id]?.name ?? 'Unknown').join(', ')}',
                   ),
                   isThreeLine: true,
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        tooltip: 'Log as eaten',
-                        icon: const Icon(Icons.check_circle_outline_rounded),
-                        onPressed: () async {
+                  trailing: PopupMenuButton<_NutritionCardAction>(
+                    tooltip: 'More actions',
+                    icon: const Icon(Icons.more_vert_rounded),
+                    onSelected: (action) async {
+                      switch (action) {
+                        case _NutritionCardAction.log:
                           await state.createMealLogFromPlan(mealPlan.id);
                           if (!context.mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -203,20 +230,39 @@ class _NutritionPageState extends State<NutritionPage> {
                               content: Text('Meal logged: ${mealPlan.name}'),
                             ),
                           );
-                        },
-                      ),
-                      IconButton(
-                        tooltip: 'Edit meal plan',
-                        icon: const Icon(Icons.edit_outlined),
-                        onPressed: () => _openAddOrEditMealPlanDialog(
-                          context,
-                          existing: mealPlan,
+                        case _NutritionCardAction.edit:
+                          _openAddOrEditMealPlanDialog(
+                            context,
+                            existing: mealPlan,
+                          );
+                        case _NutritionCardAction.delete:
+                          state.removeMealPlanItem(mealPlan.id);
+                      }
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem<_NutritionCardAction>(
+                        value: _NutritionCardAction.log,
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(Icons.check_circle_outline_rounded),
+                          title: Text('Add to log'),
                         ),
                       ),
-                      IconButton(
-                        tooltip: 'Delete meal plan',
-                        icon: const Icon(Icons.delete_outline_rounded),
-                        onPressed: () => state.removeMealPlanItem(mealPlan.id),
+                      PopupMenuItem<_NutritionCardAction>(
+                        value: _NutritionCardAction.edit,
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(Icons.edit_outlined),
+                          title: Text('Edit'),
+                        ),
+                      ),
+                      PopupMenuItem<_NutritionCardAction>(
+                        value: _NutritionCardAction.delete,
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(Icons.delete_outline_rounded),
+                          title: Text('Delete'),
+                        ),
                       ),
                     ],
                   ),
@@ -274,21 +320,35 @@ class _NutritionPageState extends State<NutritionPage> {
                     '${item.portion} · ${item.calories} kcal\nP ${item.protein.toStringAsFixed(1)} · C ${item.carbs.toStringAsFixed(1)} · F ${item.fat.toStringAsFixed(1)}',
                   ),
                   isThreeLine: true,
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        tooltip: 'Edit meal item',
-                        icon: const Icon(Icons.edit_outlined),
-                        onPressed: () => _openAddOrEditMealItemDialog(
-                          context,
-                          existing: item,
+                  trailing: PopupMenuButton<_NutritionCardAction>(
+                    tooltip: 'More actions',
+                    icon: const Icon(Icons.more_vert_rounded),
+                    onSelected: (action) {
+                      switch (action) {
+                        case _NutritionCardAction.log:
+                          break;
+                        case _NutritionCardAction.edit:
+                          _openAddOrEditMealItemDialog(context, existing: item);
+                        case _NutritionCardAction.delete:
+                          state.removeMealItem(item.id);
+                      }
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem<_NutritionCardAction>(
+                        value: _NutritionCardAction.edit,
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(Icons.edit_outlined),
+                          title: Text('Edit'),
                         ),
                       ),
-                      IconButton(
-                        tooltip: 'Delete meal item',
-                        icon: const Icon(Icons.delete_outline_rounded),
-                        onPressed: () => state.removeMealItem(item.id),
+                      PopupMenuItem<_NutritionCardAction>(
+                        value: _NutritionCardAction.delete,
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(Icons.delete_outline_rounded),
+                          title: Text('Delete'),
+                        ),
                       ),
                     ],
                   ),
