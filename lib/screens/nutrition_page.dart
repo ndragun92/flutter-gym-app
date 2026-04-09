@@ -12,6 +12,101 @@ import '../state/app_state.dart';
 
 enum _NutritionCardAction { log, edit, delete }
 
+class _MealItemSuggestion {
+  const _MealItemSuggestion({
+    required this.name,
+    required this.baseMassGrams,
+    required this.massGrams,
+    required this.calories,
+    required this.protein,
+    required this.carbs,
+    required this.fat,
+  });
+
+  final String name;
+  final double baseMassGrams;
+  final double massGrams;
+  final int calories;
+  final double protein;
+  final double carbs;
+  final double fat;
+}
+
+const List<_MealItemSuggestion> _defaultMealItemSuggestions = [
+  _MealItemSuggestion(
+    name: 'Chicken breast (skinless)',
+    baseMassGrams: 100,
+    massGrams: 100,
+    calories: 165,
+    protein: 31,
+    carbs: 0,
+    fat: 3.6,
+  ),
+  _MealItemSuggestion(
+    name: 'White rice (cooked)',
+    baseMassGrams: 100,
+    massGrams: 100,
+    calories: 130,
+    protein: 2.7,
+    carbs: 28.2,
+    fat: 0.3,
+  ),
+  _MealItemSuggestion(
+    name: 'Egg whole',
+    baseMassGrams: 100,
+    massGrams: 100,
+    calories: 143,
+    protein: 12.6,
+    carbs: 0.7,
+    fat: 9.5,
+  ),
+  _MealItemSuggestion(
+    name: 'Salmon',
+    baseMassGrams: 100,
+    massGrams: 100,
+    calories: 208,
+    protein: 20,
+    carbs: 0,
+    fat: 13,
+  ),
+  _MealItemSuggestion(
+    name: 'Greek yogurt (low fat)',
+    baseMassGrams: 100,
+    massGrams: 100,
+    calories: 59,
+    protein: 10.3,
+    carbs: 3.6,
+    fat: 0.4,
+  ),
+  _MealItemSuggestion(
+    name: 'Oats (dry)',
+    baseMassGrams: 100,
+    massGrams: 100,
+    calories: 389,
+    protein: 16.9,
+    carbs: 66.3,
+    fat: 6.9,
+  ),
+  _MealItemSuggestion(
+    name: 'Banana',
+    baseMassGrams: 100,
+    massGrams: 100,
+    calories: 89,
+    protein: 1.1,
+    carbs: 22.8,
+    fat: 0.3,
+  ),
+  _MealItemSuggestion(
+    name: 'Avocado',
+    baseMassGrams: 100,
+    massGrams: 100,
+    calories: 160,
+    protein: 2,
+    carbs: 8.5,
+    fat: 14.7,
+  ),
+];
+
 class NutritionPage extends StatefulWidget {
   const NutritionPage({super.key, this.isActive = true});
 
@@ -48,6 +143,21 @@ class _NutritionPageState extends State<NutritionPage> {
   String _dateKey(DateTime value) {
     final day = DateTime(value.year, value.month, value.day);
     return '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+  }
+
+  String _formatMass(double value) {
+    final rounded = value.roundToDouble();
+    if ((value - rounded).abs() < 0.001) {
+      return rounded.toStringAsFixed(0);
+    }
+    return value.toStringAsFixed(1);
+  }
+
+  String _massControllerText(double value) {
+    if ((value - value.roundToDouble()).abs() < 0.001) {
+      return value.toStringAsFixed(0);
+    }
+    return value.toStringAsFixed(1);
   }
 
   @override
@@ -276,6 +386,13 @@ class _NutritionPageState extends State<NutritionPage> {
   }
 
   Widget _mealItemsSection(BuildContext context, AppState state) {
+    final existingNames = state.mealItems
+        .map((item) => item.name.trim().toLowerCase())
+        .toSet();
+    final suggestedItems = _defaultMealItemSuggestions
+        .where((item) => !existingNames.contains(item.name.toLowerCase()))
+        .toList();
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -297,6 +414,39 @@ class _NutritionPageState extends State<NutritionPage> {
               ],
             ),
             const SizedBox(height: 6),
+            if (suggestedItems.isNotEmpty) ...[
+              Text(
+                'Quick add suggestions',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: suggestedItems.map((suggestion) {
+                  return ActionChip(
+                    avatar: const Icon(Icons.add_circle_outline_rounded),
+                    label: Text(suggestion.name),
+                    onPressed: () async {
+                      await state.addMealItem(
+                        name: suggestion.name,
+                        baseMassGrams: suggestion.baseMassGrams,
+                        massGrams: suggestion.massGrams,
+                        calories: suggestion.calories,
+                        protein: suggestion.protein,
+                        carbs: suggestion.carbs,
+                        fat: suggestion.fat,
+                      );
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Added: ${suggestion.name}')),
+                      );
+                    },
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 10),
+            ],
             if (state.mealItems.isEmpty)
               Text(
                 'No meal items yet. Add ingredients like Egg, Chicken Breast, Rice...',
@@ -318,7 +468,7 @@ class _NutritionPageState extends State<NutritionPage> {
                   ),
                   title: Text(item.name),
                   subtitle: Text(
-                    '${item.portion} · ${item.calories} kcal\nP ${item.protein.toStringAsFixed(1)} · C ${item.carbs.toStringAsFixed(1)} · F ${item.fat.toStringAsFixed(1)}',
+                    '${_formatMass(item.massGrams)}g (base ${_formatMass(item.baseMassGrams)}g) · ${item.scaledCalories} kcal\nP ${item.scaledProtein.toStringAsFixed(1)} · C ${item.scaledCarbs.toStringAsFixed(1)} · F ${item.scaledFat.toStringAsFixed(1)}',
                   ),
                   isThreeLine: true,
                   trailing: PopupMenuButton<_NutritionCardAction>(
@@ -605,7 +755,7 @@ class _NutritionPageState extends State<NutritionPage> {
                             contentPadding: EdgeInsets.zero,
                             title: Text(item.name),
                             subtitle: Text(
-                              '${item.portion} · ${item.calories} kcal · P ${item.protein.toStringAsFixed(1)} · C ${item.carbs.toStringAsFixed(1)} · F ${item.fat.toStringAsFixed(1)}',
+                              '${_formatMass(item.massGrams)}g (base ${_formatMass(item.baseMassGrams)}g) · ${item.scaledCalories} kcal · P ${item.scaledProtein.toStringAsFixed(1)} · C ${item.scaledCarbs.toStringAsFixed(1)} · F ${item.scaledFat.toStringAsFixed(1)}',
                             ),
                             onChanged: (checked) {
                               setState(() {
@@ -667,7 +817,12 @@ class _NutritionPageState extends State<NutritionPage> {
   }) async {
     final formKey = GlobalKey<FormState>();
     final name = TextEditingController(text: existing?.name ?? '');
-    final portion = TextEditingController(text: existing?.portion ?? '');
+    final baseMass = TextEditingController(
+      text: _massControllerText(existing?.baseMassGrams ?? 100),
+    );
+    final mass = TextEditingController(
+      text: _massControllerText(existing?.massGrams ?? 100),
+    );
     final calories = TextEditingController(
       text: existing?.calories.toString() ?? '',
     );
@@ -724,13 +879,20 @@ class _NutritionPageState extends State<NutritionPage> {
                             (v == null || v.trim().isEmpty) ? 'Required' : null,
                       ),
                       const SizedBox(height: 10),
-                      TextFormField(
-                        controller: portion,
-                        decoration: const InputDecoration(
-                          labelText: 'Portion (e.g. 3 eggs, 200g)',
-                        ),
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty) ? 'Required' : null,
+                      _number(
+                        baseMass,
+                        'Base mass (g)',
+                        requiredField: true,
+                        mustBePositive: true,
+                        onChanged: (_) => setModalState(() {}),
+                      ),
+                      const SizedBox(height: 10),
+                      _number(
+                        mass,
+                        'Mass to count (g)',
+                        requiredField: true,
+                        mustBePositive: true,
+                        onChanged: (_) => setModalState(() {}),
                       ),
                       const SizedBox(height: 10),
                       Text(
@@ -816,26 +978,109 @@ class _NutritionPageState extends State<NutritionPage> {
                         ],
                       ),
                       const SizedBox(height: 10),
+                      Text(
+                        'Nutrition for base mass',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 8),
                       _number(
                         calories,
                         'Calories (kcal)',
                         isInt: true,
                         requiredField: true,
+                        mustBePositive: true,
+                        onChanged: (_) => setModalState(() {}),
                       ),
                       const SizedBox(height: 10),
-                      _number(protein, 'Protein (g)', requiredField: true),
+                      _number(
+                        protein,
+                        'Protein (g)',
+                        requiredField: true,
+                        mustBePositive: true,
+                        onChanged: (_) => setModalState(() {}),
+                      ),
                       const SizedBox(height: 10),
-                      _number(carbs, 'Carbs (g)', requiredField: true),
+                      _number(
+                        carbs,
+                        'Carbs (g)',
+                        requiredField: true,
+                        onChanged: (_) => setModalState(() {}),
+                      ),
                       const SizedBox(height: 10),
-                      _number(fat, 'Fat (g)', requiredField: true),
+                      _number(
+                        fat,
+                        'Fat (g)',
+                        requiredField: true,
+                        onChanged: (_) => setModalState(() {}),
+                      ),
+                      const SizedBox(height: 12),
+                      Builder(
+                        builder: (context) {
+                          final parsedBase = double.tryParse(
+                            baseMass.text.trim(),
+                          );
+                          final parsedMass = double.tryParse(mass.text.trim());
+                          final parsedCalories = int.tryParse(
+                            calories.text.trim(),
+                          );
+                          final parsedProtein = double.tryParse(
+                            protein.text.trim(),
+                          );
+                          final parsedCarbs = double.tryParse(
+                            carbs.text.trim(),
+                          );
+                          final parsedFat = double.tryParse(fat.text.trim());
+
+                          final canPreview =
+                              parsedBase != null &&
+                              parsedBase > 0 &&
+                              parsedMass != null &&
+                              parsedMass > 0 &&
+                              parsedCalories != null &&
+                              parsedProtein != null &&
+                              parsedCarbs != null &&
+                              parsedFat != null;
+
+                          if (!canPreview) {
+                            return const SizedBox.shrink();
+                          }
+
+                          final multiplier = parsedMass / parsedBase;
+                          final scaledCalories = (parsedCalories * multiplier)
+                              .round();
+                          final scaledProtein = parsedProtein * multiplier;
+                          final scaledCarbs = parsedCarbs * multiplier;
+                          final scaledFat = parsedFat * multiplier;
+
+                          return Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primaryContainer.withOpacity(0.35),
+                            ),
+                            child: Text(
+                              'Preview for ${_formatMass(parsedMass)}g: $scaledCalories kcal · '
+                              'P ${scaledProtein.toStringAsFixed(1)} · '
+                              'C ${scaledCarbs.toStringAsFixed(1)} · '
+                              'F ${scaledFat.toStringAsFixed(1)}',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          );
+                        },
+                      ),
                       const SizedBox(height: 16),
                       FilledButton(
                         onPressed: () async {
                           if (!formKey.currentState!.validate()) return;
+                          final parsedBase = double.parse(baseMass.text.trim());
+                          final parsedMass = double.parse(mass.text.trim());
                           if (existing == null) {
                             await context.read<AppState>().addMealItem(
                               name: name.text.trim(),
-                              portion: portion.text.trim(),
+                              baseMassGrams: parsedBase,
+                              massGrams: parsedMass,
                               imagePath: selectedImagePath,
                               calories: int.parse(calories.text.trim()),
                               protein: double.parse(protein.text.trim()),
@@ -846,7 +1091,8 @@ class _NutritionPageState extends State<NutritionPage> {
                             await context.read<AppState>().updateMealItem(
                               id: existing.id,
                               name: name.text.trim(),
-                              portion: portion.text.trim(),
+                              baseMassGrams: parsedBase,
+                              massGrams: parsedMass,
                               imagePath: selectedImagePath,
                               calories: int.parse(calories.text.trim()),
                               protein: double.parse(protein.text.trim()),
@@ -896,19 +1142,21 @@ class _NutritionPageState extends State<NutritionPage> {
     String label, {
     bool isInt = false,
     bool requiredField = false,
+    bool mustBePositive = false,
+    ValueChanged<String>? onChanged,
   }) {
     return TextFormField(
       controller: controller,
       keyboardType: TextInputType.numberWithOptions(decimal: !isInt),
       decoration: InputDecoration(labelText: label),
+      onChanged: onChanged,
       validator: (value) {
         final raw = value?.trim() ?? '';
         if (requiredField && raw.isEmpty) return 'Required';
         if (raw.isNotEmpty) {
-          final valid = isInt
-              ? int.tryParse(raw) != null
-              : double.tryParse(raw) != null;
-          if (!valid) return 'Invalid number';
+          final parsed = isInt ? int.tryParse(raw) : double.tryParse(raw);
+          if (parsed == null) return 'Invalid number';
+          if (mustBePositive && parsed <= 0) return 'Must be > 0';
         }
         return null;
       },

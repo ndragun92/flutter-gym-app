@@ -140,7 +140,8 @@ class MealItem {
   MealItem({
     required this.id,
     required this.name,
-    required this.portion,
+    required this.baseMassGrams,
+    required this.massGrams,
     this.imagePath,
     required this.calories,
     required this.protein,
@@ -150,17 +151,53 @@ class MealItem {
 
   final String id;
   final String name;
-  final String portion;
+  final double baseMassGrams;
+  final double massGrams;
   final String? imagePath;
   final int calories;
   final double protein;
   final double carbs;
   final double fat;
 
+  double get massMultiplier {
+    if (baseMassGrams <= 0) return 1;
+    return massGrams / baseMassGrams;
+  }
+
+  int get scaledCalories => (calories * massMultiplier).round();
+  double get scaledProtein => protein * massMultiplier;
+  double get scaledCarbs => carbs * massMultiplier;
+  double get scaledFat => fat * massMultiplier;
+
+  String get portion => '${_formatMass(massGrams)}g';
+  String get basePortion => '${_formatMass(baseMassGrams)}g';
+
+  static String _formatMass(double value) {
+    final rounded = value.roundToDouble();
+    if ((value - rounded).abs() < 0.001) {
+      return rounded.toStringAsFixed(0);
+    }
+    return value.toStringAsFixed(1);
+  }
+
+  static double _legacyMassFromPortion(String? portion) {
+    if (portion == null || portion.trim().isEmpty) return 100;
+    final match = RegExp(
+      r'([0-9]+(?:[.,][0-9]+)?)\s*g',
+      caseSensitive: false,
+    ).firstMatch(portion);
+    if (match == null) return 100;
+    final raw = match.group(1)?.replaceAll(',', '.');
+    final parsed = raw == null ? null : double.tryParse(raw);
+    if (parsed == null || parsed <= 0) return 100;
+    return parsed;
+  }
+
   MealItem copyWith({
     String? id,
     String? name,
-    String? portion,
+    double? baseMassGrams,
+    double? massGrams,
     Object? imagePath = _mealItemImagePathUnset,
     int? calories,
     double? protein,
@@ -170,7 +207,8 @@ class MealItem {
     return MealItem(
       id: id ?? this.id,
       name: name ?? this.name,
-      portion: portion ?? this.portion,
+      baseMassGrams: baseMassGrams ?? this.baseMassGrams,
+      massGrams: massGrams ?? this.massGrams,
       imagePath: imagePath == _mealItemImagePathUnset
           ? this.imagePath
           : imagePath as String?,
@@ -186,6 +224,8 @@ class MealItem {
       'id': id,
       'name': name,
       'portion': portion,
+      'baseMassGrams': baseMassGrams,
+      'massGrams': massGrams,
       'imagePath': imagePath,
       'calories': calories,
       'protein': protein,
@@ -195,10 +235,19 @@ class MealItem {
   }
 
   factory MealItem.fromMap(Map<String, dynamic> map) {
+    final legacyMass = _legacyMassFromPortion(map['portion'] as String?);
+    final parsedBaseMass = (map['baseMassGrams'] as num?)?.toDouble();
+    final parsedMass = (map['massGrams'] as num?)?.toDouble();
+    final baseMass = (parsedBaseMass != null && parsedBaseMass > 0)
+        ? parsedBaseMass
+        : legacyMass;
+    final mass = (parsedMass != null && parsedMass > 0) ? parsedMass : baseMass;
+
     return MealItem(
       id: map['id'] as String,
       name: map['name'] as String,
-      portion: (map['portion'] as String?) ?? '',
+      baseMassGrams: baseMass,
+      massGrams: mass,
       imagePath: map['imagePath'] as String?,
       calories: map['calories'] as int,
       protein: (map['protein'] as num).toDouble(),

@@ -679,7 +679,8 @@ class AppState extends ChangeNotifier {
 
   Future<void> addMealItem({
     required String name,
-    required String portion,
+    required double baseMassGrams,
+    required double massGrams,
     String? imagePath,
     required int calories,
     required double protein,
@@ -690,7 +691,8 @@ class AppState extends ChangeNotifier {
       MealItem(
         id: _id(),
         name: name,
-        portion: portion,
+        baseMassGrams: baseMassGrams,
+        massGrams: massGrams,
         imagePath: imagePath,
         calories: calories,
         protein: protein,
@@ -707,7 +709,8 @@ class AppState extends ChangeNotifier {
   Future<void> updateMealItem({
     required String id,
     required String name,
-    required String portion,
+    required double baseMassGrams,
+    required double massGrams,
     String? imagePath,
     required int calories,
     required double protein,
@@ -727,7 +730,8 @@ class AppState extends ChangeNotifier {
           (e) => e.id == id
               ? e.copyWith(
                   name: name,
-                  portion: portion,
+                  baseMassGrams: baseMassGrams,
+                  massGrams: massGrams,
                   imagePath: imagePath,
                   calories: calories,
                   protein: protein,
@@ -794,10 +798,10 @@ class AppState extends ChangeNotifier {
     for (final itemId in mealItemIds) {
       final item = byId[itemId];
       if (item == null) continue;
-      calories += item.calories;
-      protein += item.protein;
-      carbs += item.carbs;
-      fat += item.fat;
+      calories += item.scaledCalories;
+      protein += item.scaledProtein;
+      carbs += item.scaledCarbs;
+      fat += item.scaledFat;
     }
 
     return _MealTotals(
