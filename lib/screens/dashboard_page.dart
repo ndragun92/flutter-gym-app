@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../models/body_measurement_entry.dart';
 import '../models/workout_entry.dart';
 import '../state/app_state.dart';
 
@@ -116,6 +117,8 @@ class DashboardPage extends StatelessWidget {
           icon: Icons.fitness_center_rounded,
           color: accentPurple,
         ),
+        const SizedBox(height: 12),
+        _BodyProgressCard(entries: appState.bodyMeasurements),
       ],
     );
   }
@@ -264,6 +267,206 @@ class _MacroCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _BodyProgressCard extends StatelessWidget {
+  const _BodyProgressCard({required this.entries});
+
+  final List<BodyMeasurementEntry> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    final latest = entries.isNotEmpty ? entries.first : null;
+    final oldest = entries.length >= 2 ? entries.last : null;
+    final waistDelta = (latest != null && oldest != null)
+        ? _nullableDelta(latest.waist, oldest.waist)
+        : null;
+    final chestDelta = (latest != null && oldest != null)
+        ? _nullableDelta(latest.chest, oldest.chest)
+        : null;
+    final hipsDelta = (latest != null && oldest != null)
+        ? _nullableDelta(latest.hips, oldest.hips)
+        : null;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Body progress snapshot',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              latest == null
+                  ? 'No body measurements yet.'
+                  : 'Updated ${DateFormat('d MMM yyyy').format(latest.date)}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+              ),
+            ),
+            if (latest == null) ...[
+              const SizedBox(height: 10),
+              Text(
+                'Add your first measurement in the Measurements tab to see current weight and progress highlights here.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ] else ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.primary.withOpacity(0.14),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.all(10),
+                    child: Icon(
+                      Icons.monitor_weight_rounded,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Current weight',
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                        Text(
+                          '${latest.weight.toStringAsFixed(1)} kg',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  if (latest.waist != null)
+                    _MetricChip(
+                      'Waist',
+                      '${latest.waist!.toStringAsFixed(1)} cm',
+                    ),
+                  if (latest.chest != null)
+                    _MetricChip(
+                      'Chest',
+                      '${latest.chest!.toStringAsFixed(1)} cm',
+                    ),
+                  if (latest.hips != null)
+                    _MetricChip(
+                      'Hips',
+                      '${latest.hips!.toStringAsFixed(1)} cm',
+                    ),
+                  if (latest.biceps != null)
+                    _MetricChip(
+                      'Biceps',
+                      '${latest.biceps!.toStringAsFixed(1)} cm',
+                    ),
+                  if (latest.thigh != null)
+                    _MetricChip(
+                      'Thigh',
+                      '${latest.thigh!.toStringAsFixed(1)} cm',
+                    ),
+                ],
+              ),
+              if (oldest != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Progress highlights',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+                const SizedBox(height: 6),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _DeltaChip(
+                        'Weight ${_formatDelta(latest.weight - oldest.weight)} kg',
+                      ),
+                      if (waistDelta != null) ...[
+                        const SizedBox(width: 6),
+                        _DeltaChip('Waist ${_formatDelta(waistDelta)} cm'),
+                      ],
+                      if (chestDelta != null) ...[
+                        const SizedBox(width: 6),
+                        _DeltaChip('Chest ${_formatDelta(chestDelta)} cm'),
+                      ],
+                      if (hipsDelta != null) ...[
+                        const SizedBox(width: 6),
+                        _DeltaChip('Hips ${_formatDelta(hipsDelta)} cm'),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  double? _nullableDelta(double? current, double? baseline) {
+    if (current == null || baseline == null) return null;
+    return current - baseline;
+  }
+
+  String _formatDelta(double value) {
+    final prefix = value > 0 ? '+' : '';
+    return '$prefix${value.toStringAsFixed(1)}';
+  }
+}
+
+class _MetricChip extends StatelessWidget {
+  const _MetricChip(this.label, this.value);
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        '$label: $value',
+        style: Theme.of(context).textTheme.labelSmall,
+      ),
+    );
+  }
+}
+
+class _DeltaChip extends StatelessWidget {
+  const _DeltaChip(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(text, style: Theme.of(context).textTheme.labelSmall),
     );
   }
 }
