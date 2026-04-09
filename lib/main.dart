@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'core/app_theme.dart';
+import 'models/workout_entry.dart';
 import 'screens/dashboard_page.dart';
 import 'screens/measurements_page.dart';
 import 'screens/nutrition_page.dart';
@@ -249,7 +250,10 @@ class _RootShellState extends State<_RootShell> {
 
   Future<void> _openQuickWorkoutDialog() async {
     final formKey = GlobalKey<FormState>();
-    final exercise = TextEditingController();
+    final knownExercises = _exerciseSuggestions(
+      context.read<AppState>().workoutEntries,
+    );
+    var exerciseName = '';
     final sets = TextEditingController(text: '3');
     final reps = TextEditingController(text: '8');
     final weight = TextEditingController();
@@ -277,12 +281,45 @@ class _RootShellState extends State<_RootShell> {
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
-                  controller: exercise,
-                  decoration: const InputDecoration(labelText: 'Exercise'),
-                  validator: (value) => (value == null || value.trim().isEmpty)
-                      ? 'Required'
-                      : null,
+                Autocomplete<String>(
+                  optionsBuilder: (textEditingValue) {
+                    final query = textEditingValue.text.trim().toLowerCase();
+                    if (knownExercises.isEmpty) {
+                      return const Iterable<String>.empty();
+                    }
+                    if (query.isEmpty) {
+                      return knownExercises.take(8);
+                    }
+                    return knownExercises
+                        .where((item) => item.toLowerCase().contains(query))
+                        .take(8);
+                  },
+                  onSelected: (selected) => exerciseName = selected,
+                  fieldViewBuilder:
+                      (
+                        context,
+                        textEditingController,
+                        focusNode,
+                        onFieldSubmitted,
+                      ) {
+                        return TextFormField(
+                          controller: textEditingController,
+                          focusNode: focusNode,
+                          decoration: InputDecoration(
+                            labelText: 'Exercise',
+                            hintText: knownExercises.isEmpty
+                                ? 'e.g. Bench Press'
+                                : 'Type to see suggestions',
+                          ),
+                          textInputAction: TextInputAction.next,
+                          onChanged: (value) => exerciseName = value,
+                          onFieldSubmitted: (_) => onFieldSubmitted(),
+                          validator: (value) =>
+                              (value == null || value.trim().isEmpty)
+                              ? 'Required'
+                              : null,
+                        );
+                      },
                 ),
                 const SizedBox(height: 10),
                 Row(
@@ -326,7 +363,7 @@ class _RootShellState extends State<_RootShell> {
                     if (!formKey.currentState!.validate()) return;
                     await context.read<AppState>().addWorkoutEntry(
                       date: DateTime.now(),
-                      exercise: exercise.text.trim(),
+                      exercise: exerciseName.trim(),
                       sets: int.parse(sets.text.trim()),
                       reps: int.parse(reps.text.trim()),
                       weight: double.parse(weight.text.trim()),
@@ -345,6 +382,19 @@ class _RootShellState extends State<_RootShell> {
         );
       },
     );
+  }
+
+  String _normalizeExerciseName(String value) {
+    return value.trim().toLowerCase();
+  }
+
+  List<String> _exerciseSuggestions(List<WorkoutEntry> entries) {
+    final grouped = <String, String>{};
+    for (final entry in entries) {
+      final normalized = _normalizeExerciseName(entry.exercise);
+      grouped.putIfAbsent(normalized, () => entry.exercise.trim());
+    }
+    return grouped.values.toList()..sort((a, b) => a.compareTo(b));
   }
 
   Widget _quickNumberField({
