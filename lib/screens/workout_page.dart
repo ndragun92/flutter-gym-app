@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -322,7 +324,12 @@ class WorkoutPage extends StatelessWidget {
             left: 16,
             right: 16,
             top: 8,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+            bottom:
+                math.max(
+                  MediaQuery.of(context).viewInsets.bottom,
+                  MediaQuery.of(context).viewPadding.bottom,
+                ) +
+                16,
           ),
           child: StatefulBuilder(
             builder: (context, setState) {
@@ -442,7 +449,12 @@ class WorkoutPage extends StatelessWidget {
             left: 16,
             right: 16,
             top: 8,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+            bottom:
+                math.max(
+                  MediaQuery.of(context).viewInsets.bottom,
+                  MediaQuery.of(context).viewPadding.bottom,
+                ) +
+                16,
           ),
           child: StatefulBuilder(
             builder: (context, setState) {

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -450,7 +451,12 @@ class _NutritionPageState extends State<NutritionPage> {
             left: 16,
             right: 16,
             top: 8,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+            bottom:
+                math.max(
+                  MediaQuery.of(context).viewInsets.bottom,
+                  MediaQuery.of(context).viewPadding.bottom,
+                ) +
+                16,
           ),
           child: StatefulBuilder(
             builder: (context, setState) {
@@ -546,7 +552,12 @@ class _NutritionPageState extends State<NutritionPage> {
             left: 16,
             right: 16,
             top: 8,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+            bottom:
+                math.max(
+                  MediaQuery.of(context).viewInsets.bottom,
+                  MediaQuery.of(context).viewPadding.bottom,
+                ) +
+                16,
           ),
           child: StatefulBuilder(
             builder: (context, setState) {
@@ -678,7 +689,12 @@ class _NutritionPageState extends State<NutritionPage> {
             left: 16,
             right: 16,
             top: 8,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+            bottom:
+                math.max(
+                  MediaQuery.of(context).viewInsets.bottom,
+                  MediaQuery.of(context).viewPadding.bottom,
+                ) +
+                16,
           ),
           child: StatefulBuilder(
             builder: (context, setModalState) {

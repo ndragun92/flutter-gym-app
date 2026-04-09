@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -83,7 +84,12 @@ class MeasurementsPage extends StatelessWidget {
             left: 16,
             right: 16,
             top: 8,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+            bottom:
+                math.max(
+                  MediaQuery.of(context).viewInsets.bottom,
+                  MediaQuery.of(context).viewPadding.bottom,
+                ) +
+                16,
           ),
           child: StatefulBuilder(
             builder: (context, setState) {
