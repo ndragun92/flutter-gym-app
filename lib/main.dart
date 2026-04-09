@@ -26,7 +26,7 @@ class MainApp extends StatelessWidget {
       create: (_) => AppState(),
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'Birdle Fit Tracker',
+        title: 'PulseNest Tracker',
         theme: AppTheme.light(),
         darkTheme: AppTheme.dark(),
         themeMode: ThemeMode.dark,

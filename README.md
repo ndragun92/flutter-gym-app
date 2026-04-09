@@ -1,3 +1,3 @@
-# birdle
+# PulseNest Tracker
 
-A new Flutter project.
+PulseNest helps you track workouts, meals, and body measurements in one place.
