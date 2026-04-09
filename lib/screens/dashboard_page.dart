@@ -352,36 +352,45 @@ class _BodyProgressCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  if (latest.waist != null)
-                    _MetricChip(
-                      'Waist',
-                      '${latest.waist!.toStringAsFixed(1)} cm',
-                    ),
-                  if (latest.chest != null)
-                    _MetricChip(
-                      'Chest',
-                      '${latest.chest!.toStringAsFixed(1)} cm',
-                    ),
-                  if (latest.hips != null)
-                    _MetricChip(
-                      'Hips',
-                      '${latest.hips!.toStringAsFixed(1)} cm',
-                    ),
-                  if (latest.biceps != null)
-                    _MetricChip(
-                      'Biceps',
-                      '${latest.biceps!.toStringAsFixed(1)} cm',
-                    ),
-                  if (latest.thigh != null)
-                    _MetricChip(
-                      'Thigh',
-                      '${latest.thigh!.toStringAsFixed(1)} cm',
-                    ),
-                ],
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    if (latest.waist != null) ...[
+                      _MetricChip(
+                        'Waist',
+                        '${latest.waist!.toStringAsFixed(1)} cm',
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    if (latest.chest != null) ...[
+                      _MetricChip(
+                        'Chest',
+                        '${latest.chest!.toStringAsFixed(1)} cm',
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    if (latest.hips != null) ...[
+                      _MetricChip(
+                        'Hips',
+                        '${latest.hips!.toStringAsFixed(1)} cm',
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    if (latest.biceps != null) ...[
+                      _MetricChip(
+                        'Biceps',
+                        '${latest.biceps!.toStringAsFixed(1)} cm',
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    if (latest.thigh != null)
+                      _MetricChip(
+                        'Thigh',
+                        '${latest.thigh!.toStringAsFixed(1)} cm',
+                      ),
+                  ],
+                ),
               ),
               if (oldest != null) ...[
                 const SizedBox(height: 12),
