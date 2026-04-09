@@ -34,52 +34,25 @@ class _MealItemSuggestion {
 
 const List<_MealItemSuggestion> _defaultMealItemSuggestions = [
   _MealItemSuggestion(
-    name: 'Chicken breast (skinless)',
-    baseMassGrams: 100,
-    massGrams: 100,
-    calories: 165,
-    protein: 31,
-    carbs: 0,
-    fat: 3.6,
+    name: 'Boiled egg (1 piece)',
+    baseMassGrams: 50,
+    massGrams: 50,
+    calories: 78,
+    protein: 6.3,
+    carbs: 0.6,
+    fat: 5.3,
   ),
   _MealItemSuggestion(
-    name: 'White rice (cooked)',
+    name: 'Turkey ham (100g) base (from fridge already prepared)',
     baseMassGrams: 100,
     massGrams: 100,
-    calories: 130,
-    protein: 2.7,
-    carbs: 28.2,
-    fat: 0.3,
+    calories: 110,
+    protein: 19,
+    carbs: 2,
+    fat: 2,
   ),
   _MealItemSuggestion(
-    name: 'Egg whole',
-    baseMassGrams: 100,
-    massGrams: 100,
-    calories: 143,
-    protein: 12.6,
-    carbs: 0.7,
-    fat: 9.5,
-  ),
-  _MealItemSuggestion(
-    name: 'Salmon',
-    baseMassGrams: 100,
-    massGrams: 100,
-    calories: 208,
-    protein: 20,
-    carbs: 0,
-    fat: 13,
-  ),
-  _MealItemSuggestion(
-    name: 'Greek yogurt (low fat)',
-    baseMassGrams: 100,
-    massGrams: 100,
-    calories: 59,
-    protein: 10.3,
-    carbs: 3.6,
-    fat: 0.4,
-  ),
-  _MealItemSuggestion(
-    name: 'Oats (dry)',
+    name: 'Haferflocken (100g) base',
     baseMassGrams: 100,
     massGrams: 100,
     calories: 389,
@@ -88,22 +61,76 @@ const List<_MealItemSuggestion> _defaultMealItemSuggestions = [
     fat: 6.9,
   ),
   _MealItemSuggestion(
-    name: 'Banana',
+    name: 'Cottage cheese (100g) base (low fat)',
     baseMassGrams: 100,
     massGrams: 100,
-    calories: 89,
-    protein: 1.1,
-    carbs: 22.8,
-    fat: 0.3,
+    calories: 72,
+    protein: 12,
+    carbs: 3,
+    fat: 1,
   ),
   _MealItemSuggestion(
-    name: 'Avocado',
+    name: 'Greek joghurt (100g) base (low fat)',
     baseMassGrams: 100,
     massGrams: 100,
-    calories: 160,
-    protein: 2,
-    carbs: 8.5,
-    fat: 14.7,
+    calories: 59,
+    protein: 10.3,
+    carbs: 3.6,
+    fat: 0.4,
+  ),
+  _MealItemSuggestion(
+    name: 'Sweet potato (100g) base',
+    baseMassGrams: 100,
+    massGrams: 100,
+    calories: 86,
+    protein: 1.6,
+    carbs: 20.1,
+    fat: 0.1,
+  ),
+  _MealItemSuggestion(
+    name: 'Chicken breast (100g) base uncooked',
+    baseMassGrams: 100,
+    massGrams: 100,
+    calories: 120,
+    protein: 22.5,
+    carbs: 0,
+    fat: 2.6,
+  ),
+  _MealItemSuggestion(
+    name: 'Basmati Rice (100g) base uncooked',
+    baseMassGrams: 100,
+    massGrams: 100,
+    calories: 356,
+    protein: 8.9,
+    carbs: 77.5,
+    fat: 0.8,
+  ),
+  _MealItemSuggestion(
+    name: 'Grounded beef (100g) base uncooked',
+    baseMassGrams: 100,
+    massGrams: 100,
+    calories: 166,
+    protein: 20,
+    carbs: 0,
+    fat: 10,
+  ),
+  _MealItemSuggestion(
+    name: 'Brocolli (1 piece)',
+    baseMassGrams: 300,
+    massGrams: 300,
+    calories: 102,
+    protein: 8.4,
+    carbs: 20.4,
+    fat: 1.2,
+  ),
+  _MealItemSuggestion(
+    name: 'Ketchup (100 ml) base light version',
+    baseMassGrams: 100,
+    massGrams: 100,
+    calories: 50,
+    protein: 1,
+    carbs: 12,
+    fat: 0.2,
   ),
 ];
 
@@ -420,30 +447,35 @@ class _NutritionPageState extends State<NutritionPage> {
                 style: Theme.of(context).textTheme.titleSmall,
               ),
               const SizedBox(height: 6),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: suggestedItems.map((suggestion) {
-                  return ActionChip(
-                    avatar: const Icon(Icons.add_circle_outline_rounded),
-                    label: Text(suggestion.name),
-                    onPressed: () async {
-                      await state.addMealItem(
-                        name: suggestion.name,
-                        baseMassGrams: suggestion.baseMassGrams,
-                        massGrams: suggestion.massGrams,
-                        calories: suggestion.calories,
-                        protein: suggestion.protein,
-                        carbs: suggestion.carbs,
-                        fat: suggestion.fat,
-                      );
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Added: ${suggestion.name}')),
-                      );
-                    },
-                  );
-                }).toList(),
+              SizedBox(
+                height: 38,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: suggestedItems.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    final suggestion = suggestedItems[index];
+                    return ActionChip(
+                      avatar: const Icon(Icons.add_circle_outline_rounded),
+                      label: Text(suggestion.name),
+                      onPressed: () async {
+                        await state.addMealItem(
+                          name: suggestion.name,
+                          baseMassGrams: suggestion.baseMassGrams,
+                          massGrams: suggestion.massGrams,
+                          calories: suggestion.calories,
+                          protein: suggestion.protein,
+                          carbs: suggestion.carbs,
+                          fat: suggestion.fat,
+                        );
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Added: ${suggestion.name}')),
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
               const SizedBox(height: 10),
             ],
