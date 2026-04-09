@@ -51,6 +51,8 @@ class AppTheme {
         secondary: secondaryText,
         onBackground: text,
         onSurface: text,
+        outline: const Color(0xFF52525B), // zinc-600
+        outlineVariant: const Color(0xFF3F3F46), // zinc-700
       ),
     );
 
@@ -77,6 +79,7 @@ class AppTheme {
       ),
       textTheme: base.textTheme.apply(bodyColor: text, displayColor: text),
       iconTheme: base.iconTheme.copyWith(color: text),
+      dividerColor: const Color(0xFF3F3F46), // zinc-700
       appBarTheme: base.appBarTheme.copyWith(
         backgroundColor: surface,
         iconTheme: base.iconTheme.copyWith(color: text),

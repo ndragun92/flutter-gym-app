@@ -37,11 +37,18 @@ class DashboardPage extends StatelessWidget {
     final nextGym = _nextGym(appState.gymSchedules);
 
     final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final accentOrange = colorScheme.secondary;
-    final accentRed = Colors.pinkAccent;
-    final accentBlue = Colors.lightBlueAccent;
+    final accentRed = isDark
+        ? const Color(0xFFF48FB1)
+        : Colors.pinkAccent; // pink-200 in dark
+    final accentBlue = isDark
+        ? const Color(0xFF81D4FA)
+        : Colors.lightBlueAccent; // lightBlue-200 in dark
     final accentTeal = colorScheme.primary;
-    final accentPurple = Colors.deepPurpleAccent;
+    final accentPurple = isDark
+        ? const Color(0xFFCE93D8)
+        : Colors.deepPurpleAccent; // purple-200 in dark
     final secondaryText = colorScheme.onSurface.withOpacity(0.7);
 
     return ListView(
