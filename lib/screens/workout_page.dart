@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import '../models/workout_entry.dart';
 import '../state/app_state.dart';
 
+enum _WorkoutCardAction { edit, delete }
+
 class WorkoutPage extends StatelessWidget {
   const WorkoutPage({super.key});
 
@@ -90,9 +92,35 @@ class WorkoutPage extends StatelessWidget {
                         onChanged: (v) =>
                             appState.toggleGymSchedule(item.id, v),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline_rounded),
-                        onPressed: () => appState.removeGymSchedule(item.id),
+                      PopupMenuButton<_WorkoutCardAction>(
+                        tooltip: 'More actions',
+                        icon: const Icon(Icons.more_vert_rounded),
+                        onSelected: (action) {
+                          switch (action) {
+                            case _WorkoutCardAction.edit:
+                              _openAddGymSchedule(context, existing: item);
+                            case _WorkoutCardAction.delete:
+                              appState.removeGymSchedule(item.id);
+                          }
+                        },
+                        itemBuilder: (context) => const [
+                          PopupMenuItem<_WorkoutCardAction>(
+                            value: _WorkoutCardAction.edit,
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.edit_outlined),
+                              title: Text('Edit'),
+                            ),
+                          ),
+                          PopupMenuItem<_WorkoutCardAction>(
+                            value: _WorkoutCardAction.delete,
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.delete_outline_rounded),
+                              title: Text('Delete'),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -215,9 +243,35 @@ class WorkoutPage extends StatelessWidget {
                           (entry.notes == null || entry.notes!.trim().isEmpty)
                           ? null
                           : Text(entry.notes!),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline_rounded),
-                        onPressed: () => appState.removeWorkoutEntry(entry.id),
+                      trailing: PopupMenuButton<_WorkoutCardAction>(
+                        tooltip: 'More actions',
+                        icon: const Icon(Icons.more_vert_rounded),
+                        onSelected: (action) {
+                          switch (action) {
+                            case _WorkoutCardAction.edit:
+                              _openAddWorkoutDialog(context, existing: entry);
+                            case _WorkoutCardAction.delete:
+                              appState.removeWorkoutEntry(entry.id);
+                          }
+                        },
+                        itemBuilder: (context) => const [
+                          PopupMenuItem<_WorkoutCardAction>(
+                            value: _WorkoutCardAction.edit,
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.edit_outlined),
+                              title: Text('Edit'),
+                            ),
+                          ),
+                          PopupMenuItem<_WorkoutCardAction>(
+                            value: _WorkoutCardAction.delete,
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.delete_outline_rounded),
+                              title: Text('Delete'),
+                            ),
+                          ),
+                        ],
                       ),
                     );
                   }).toList(),
@@ -247,11 +301,16 @@ class WorkoutPage extends StatelessWidget {
     return names[(day - 1).clamp(0, 6)];
   }
 
-  Future<void> _openAddGymSchedule(BuildContext context) async {
+  Future<void> _openAddGymSchedule(
+    BuildContext context, {
+    GymSchedule? existing,
+  }) async {
     final formKey = GlobalKey<FormState>();
-    final title = TextEditingController();
-    var weekday = DateTime.now().weekday;
-    var time = TimeOfDay.now();
+    final title = TextEditingController(text: existing?.title ?? '');
+    var weekday = existing?.weekday ?? DateTime.now().weekday;
+    var time = existing == null
+        ? TimeOfDay.now()
+        : TimeOfDay(hour: existing.hour, minute: existing.minute);
 
     await showModalBottomSheet<void>(
       context: context,
@@ -274,7 +333,9 @@ class WorkoutPage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'New gym schedule',
+                      existing == null
+                          ? 'New gym schedule'
+                          : 'Edit gym schedule',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 12),
@@ -317,15 +378,28 @@ class WorkoutPage extends StatelessWidget {
                     FilledButton(
                       onPressed: () async {
                         if (!formKey.currentState!.validate()) return;
-                        await context.read<AppState>().addGymSchedule(
-                          title: title.text.trim(),
-                          weekday: weekday,
-                          hour: time.hour,
-                          minute: time.minute,
-                        );
+                        final state = context.read<AppState>();
+                        if (existing == null) {
+                          await state.addGymSchedule(
+                            title: title.text.trim(),
+                            weekday: weekday,
+                            hour: time.hour,
+                            minute: time.minute,
+                          );
+                        } else {
+                          await state.updateGymSchedule(
+                            id: existing.id,
+                            title: title.text.trim(),
+                            weekday: weekday,
+                            hour: time.hour,
+                            minute: time.minute,
+                          );
+                        }
                         if (context.mounted) Navigator.pop(context);
                       },
-                      child: const Text('Save schedule'),
+                      child: Text(
+                        existing == null ? 'Save schedule' : 'Save changes',
+                      ),
                     ),
                   ],
                 ),
@@ -337,17 +411,26 @@ class WorkoutPage extends StatelessWidget {
     );
   }
 
-  Future<void> _openAddWorkoutDialog(BuildContext context) async {
+  Future<void> _openAddWorkoutDialog(
+    BuildContext context, {
+    WorkoutEntry? existing,
+  }) async {
     final formKey = GlobalKey<FormState>();
-    final exercise = TextEditingController();
-    final sets = TextEditingController();
-    final reps = TextEditingController();
-    final weight = TextEditingController();
-    final notes = TextEditingController();
+    final exercise = TextEditingController(text: existing?.exercise ?? '');
+    final sets = TextEditingController(
+      text: existing == null ? '' : existing.sets.toString(),
+    );
+    final reps = TextEditingController(
+      text: existing == null ? '' : existing.reps.toString(),
+    );
+    final weight = TextEditingController(
+      text: existing == null ? '' : existing.weight.toStringAsFixed(1),
+    );
+    final notes = TextEditingController(text: existing?.notes ?? '');
     final exerciseSuggestions = _exerciseSuggestions(
       context.read<AppState>().workoutEntries,
     );
-    var date = DateTime.now();
+    var date = existing?.date ?? DateTime.now();
 
     await showModalBottomSheet<void>(
       context: context,
@@ -371,7 +454,7 @@ class WorkoutPage extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
-                        'Log workout',
+                        existing == null ? 'Log workout' : 'Edit workout',
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 12),
@@ -457,19 +540,36 @@ class WorkoutPage extends StatelessWidget {
                       FilledButton(
                         onPressed: () async {
                           if (!formKey.currentState!.validate()) return;
-                          await context.read<AppState>().addWorkoutEntry(
-                            date: date,
-                            exercise: exercise.text.trim(),
-                            sets: int.parse(sets.text.trim()),
-                            reps: int.parse(reps.text.trim()),
-                            weight: double.parse(weight.text.trim()),
-                            notes: notes.text.trim().isEmpty
-                                ? null
-                                : notes.text.trim(),
-                          );
+                          final state = context.read<AppState>();
+                          if (existing == null) {
+                            await state.addWorkoutEntry(
+                              date: date,
+                              exercise: exercise.text.trim(),
+                              sets: int.parse(sets.text.trim()),
+                              reps: int.parse(reps.text.trim()),
+                              weight: double.parse(weight.text.trim()),
+                              notes: notes.text.trim().isEmpty
+                                  ? null
+                                  : notes.text.trim(),
+                            );
+                          } else {
+                            await state.updateWorkoutEntry(
+                              id: existing.id,
+                              date: date,
+                              exercise: exercise.text.trim(),
+                              sets: int.parse(sets.text.trim()),
+                              reps: int.parse(reps.text.trim()),
+                              weight: double.parse(weight.text.trim()),
+                              notes: notes.text.trim().isEmpty
+                                  ? null
+                                  : notes.text.trim(),
+                            );
+                          }
                           if (context.mounted) Navigator.pop(context);
                         },
-                        child: const Text('Save workout'),
+                        child: Text(
+                          existing == null ? 'Save workout' : 'Save changes',
+                        ),
                       ),
                     ],
                   ),

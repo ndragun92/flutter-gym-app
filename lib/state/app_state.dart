@@ -500,6 +500,39 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> updateWorkoutEntry({
+    required String id,
+    required DateTime date,
+    required String exercise,
+    required int sets,
+    required int reps,
+    required double weight,
+    String? notes,
+  }) async {
+    workoutEntries = workoutEntries
+        .map(
+          (e) => e.id == id
+              ? WorkoutEntry(
+                  id: e.id,
+                  date: date,
+                  exercise: exercise,
+                  sets: sets,
+                  reps: reps,
+                  weight: weight,
+                  notes: notes,
+                )
+              : e,
+        )
+        .toList();
+
+    workoutEntries.sort((a, b) => b.date.compareTo(a.date));
+    await _saveList(
+      _workoutLogsKey,
+      workoutEntries.map((e) => e.toMap()).toList(),
+    );
+    notifyListeners();
+  }
+
   Future<void> removeWorkoutEntry(String id) async {
     workoutEntries.removeWhere((e) => e.id == id);
     await _saveList(
@@ -524,6 +557,42 @@ class AppState extends ChangeNotifier {
         minute: minute,
       ),
     );
+    gymSchedules.sort((a, b) {
+      final byDay = a.weekday.compareTo(b.weekday);
+      if (byDay != 0) return byDay;
+      return _toMinutes(
+        a.hour,
+        a.minute,
+      ).compareTo(_toMinutes(b.hour, b.minute));
+    });
+    await _saveList(
+      _gymScheduleKey,
+      gymSchedules.map((e) => e.toMap()).toList(),
+    );
+    await NotificationService.instance.scheduleGymReminders(gymSchedules);
+    notifyListeners();
+  }
+
+  Future<void> updateGymSchedule({
+    required String id,
+    required String title,
+    required int weekday,
+    required int hour,
+    required int minute,
+  }) async {
+    gymSchedules = gymSchedules
+        .map(
+          (e) => e.id == id
+              ? e.copyWith(
+                  title: title,
+                  weekday: weekday,
+                  hour: hour,
+                  minute: minute,
+                )
+              : e,
+        )
+        .toList();
+
     gymSchedules.sort((a, b) {
       final byDay = a.weekday.compareTo(b.weekday);
       if (byDay != 0) return byDay;
