@@ -47,8 +47,15 @@ class NotificationService {
   static const int _gymIdStart = 20_000;
   static const int _gymIdEndExclusive = 30_000;
 
+  bool get _supportsScheduledLocalNotifications => !kIsWeb;
+
   Future<void> initialize() async {
     if (_initialized) return;
+
+    if (!_supportsScheduledLocalNotifications) {
+      _initialized = true;
+      return;
+    }
 
     tz.initializeTimeZones();
     try {
@@ -90,6 +97,13 @@ class NotificationService {
   Future<NotificationPermissionStatus> getPermissionStatus({
     bool requestIfNeeded = false,
   }) async {
+    if (!_supportsScheduledLocalNotifications) {
+      return const NotificationPermissionStatus(
+        notificationsEnabled: false,
+        exactAlarmsEnabled: false,
+      );
+    }
+
     await initialize();
 
     var notificationsEnabled = true;
@@ -143,6 +157,10 @@ class NotificationService {
   }
 
   Future<void> scheduleMealReminders(List<MealSchedule> schedules) async {
+    if (!_supportsScheduledLocalNotifications) {
+      return;
+    }
+
     await initialize();
     final permissionStatus = await getPermissionStatus(requestIfNeeded: true);
     if (!permissionStatus.notificationsEnabled) {
@@ -188,6 +206,10 @@ class NotificationService {
   }
 
   Future<void> scheduleGymReminders(List<GymSchedule> schedules) async {
+    if (!_supportsScheduledLocalNotifications) {
+      return;
+    }
+
     await initialize();
     final permissionStatus = await getPermissionStatus(requestIfNeeded: true);
     if (!permissionStatus.notificationsEnabled) {
@@ -321,7 +343,7 @@ class NotificationService {
   }
 
   Future<void> debugNotificationNow() async {
-    if (!kDebugMode) return;
+    if (!kDebugMode || !_supportsScheduledLocalNotifications) return;
     await _plugin.show(
       999,
       'Debug notification',
