@@ -424,6 +424,7 @@ class AppState extends ChangeNotifier {
   Future<void> addBodyMeasurement({
     required DateTime date,
     required double weight,
+    String? imagePath,
     double? waist,
     double? chest,
     double? hips,
@@ -436,6 +437,7 @@ class AppState extends ChangeNotifier {
         id: _id(),
         date: date,
         weight: weight,
+        imagePath: imagePath,
         waist: waist,
         chest: chest,
         hips: hips,
@@ -452,11 +454,20 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> removeBodyMeasurement(String id) async {
+    String? imagePath;
+    for (final measurement in bodyMeasurements) {
+      if (measurement.id == id) {
+        imagePath = measurement.imagePath;
+        break;
+      }
+    }
+
     bodyMeasurements.removeWhere((e) => e.id == id);
     await _saveList(
       _bodyMeasurementKey,
       bodyMeasurements.map((e) => e.toMap()).toList(),
     );
+    await _deleteLocalImageIfObsolete(imagePath, null);
     notifyListeners();
   }
 

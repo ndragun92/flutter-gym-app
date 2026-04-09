@@ -5,6 +5,7 @@ class BodyMeasurementEntry {
     required this.id,
     required this.date,
     required this.weight,
+    this.imagePath,
     this.waist,
     this.chest,
     this.hips,
@@ -15,6 +16,7 @@ class BodyMeasurementEntry {
   final String id;
   final DateTime date;
   final double weight;
+  final String? imagePath;
   final double? waist;
   final double? chest;
   final double? hips;
@@ -26,6 +28,7 @@ class BodyMeasurementEntry {
       'id': id,
       'date': date.toIso8601String(),
       'weight': weight,
+      'imagePath': imagePath,
       'waist': waist,
       'chest': chest,
       'hips': hips,
@@ -39,6 +42,7 @@ class BodyMeasurementEntry {
       id: map['id'] as String,
       date: DateTime.parse(map['date'] as String),
       weight: (map['weight'] as num).toDouble(),
+      imagePath: map['imagePath'] as String?,
       waist: (map['waist'] as num?)?.toDouble(),
       chest: (map['chest'] as num?)?.toDouble(),
       hips: (map['hips'] as num?)?.toDouble(),

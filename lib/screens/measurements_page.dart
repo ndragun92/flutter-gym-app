@@ -1,7 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
+import '../models/body_measurement_entry.dart';
 import '../state/app_state.dart';
 
 class MeasurementsPage extends StatelessWidget {
@@ -31,7 +36,7 @@ class MeasurementsPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          if (list.length >= 2) _ProgressHighlights(),
+          if (list.length >= 2) _ProgressHighlights(entries: list),
           if (list.length >= 2) const SizedBox(height: 12),
           if (list.isEmpty)
             Card(
@@ -44,50 +49,7 @@ class MeasurementsPage extends StatelessWidget {
               ),
             )
           else
-            ...list.map(
-              (item) => Card(
-                child: ListTile(
-                  contentPadding: const EdgeInsets.all(14),
-                  title: Text(DateFormat('d MMM yyyy').format(item.date)),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _chip('Weight', '${item.weight.toStringAsFixed(1)} kg'),
-                        if (item.waist != null)
-                          _chip(
-                            'Waist',
-                            '${item.waist!.toStringAsFixed(1)} cm',
-                          ),
-                        if (item.chest != null)
-                          _chip(
-                            'Chest',
-                            '${item.chest!.toStringAsFixed(1)} cm',
-                          ),
-                        if (item.hips != null)
-                          _chip('Hips', '${item.hips!.toStringAsFixed(1)} cm'),
-                        if (item.biceps != null)
-                          _chip(
-                            'Biceps',
-                            '${item.biceps!.toStringAsFixed(1)} cm',
-                          ),
-                        if (item.thigh != null)
-                          _chip(
-                            'Thigh',
-                            '${item.thigh!.toStringAsFixed(1)} cm',
-                          ),
-                      ],
-                    ),
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline_rounded),
-                    onPressed: () => appState.removeBodyMeasurement(item.id),
-                  ),
-                ),
-              ),
-            ),
+            ...list.map((item) => _MeasurementCard(item: item)),
           const SizedBox(height: 90),
         ],
       ),
@@ -99,13 +61,6 @@ class MeasurementsPage extends StatelessWidget {
     );
   }
 
-  Widget _chip(String label, String value) {
-    return Chip(
-      label: Text('$label: $value'),
-      visualDensity: VisualDensity.compact,
-    );
-  }
-
   Future<void> _openAddDialog(BuildContext context) async {
     final formKey = GlobalKey<FormState>();
     final weight = TextEditingController();
@@ -114,6 +69,8 @@ class MeasurementsPage extends StatelessWidget {
     final hips = TextEditingController();
     final biceps = TextEditingController();
     final thigh = TextEditingController();
+    final imagePicker = ImagePicker();
+    String? selectedImagePath;
     var selectedDate = DateTime.now();
 
     await showModalBottomSheet<void>(
@@ -130,6 +87,11 @@ class MeasurementsPage extends StatelessWidget {
           ),
           child: StatefulBuilder(
             builder: (context, setState) {
+              final hasImage =
+                  selectedImagePath != null &&
+                  selectedImagePath!.isNotEmpty &&
+                  File(selectedImagePath!).existsSync();
+
               return Form(
                 key: formKey,
                 child: SingleChildScrollView(
@@ -173,6 +135,89 @@ class MeasurementsPage extends StatelessWidget {
                       _numField(biceps, 'Biceps (cm)'),
                       const SizedBox(height: 10),
                       _numField(thigh, 'Thigh (cm)'),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Progress photo',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 8),
+                      if (hasImage)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.file(
+                            File(selectedImagePath!),
+                            height: 170,
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      else
+                        Container(
+                          height: 115,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Theme.of(context).dividerColor,
+                            ),
+                          ),
+                          child: const Center(
+                            child: Icon(Icons.image_outlined, size: 30),
+                          ),
+                        ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.camera_alt_rounded),
+                            label: const Text('Take photo'),
+                            onPressed: () async {
+                              final shot = await imagePicker.pickImage(
+                                source: ImageSource.camera,
+                                imageQuality: 85,
+                                maxWidth: 1440,
+                              );
+                              if (shot == null) return;
+                              final savedPath = await _persistMeasurementImage(
+                                shot.path,
+                              );
+                              if (!context.mounted) return;
+                              setState(() {
+                                selectedImagePath = savedPath;
+                              });
+                            },
+                          ),
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.photo_library_outlined),
+                            label: const Text('Upload photo'),
+                            onPressed: () async {
+                              final picked = await imagePicker.pickImage(
+                                source: ImageSource.gallery,
+                                imageQuality: 85,
+                                maxWidth: 1440,
+                              );
+                              if (picked == null) return;
+                              final savedPath = await _persistMeasurementImage(
+                                picked.path,
+                              );
+                              if (!context.mounted) return;
+                              setState(() {
+                                selectedImagePath = savedPath;
+                              });
+                            },
+                          ),
+                          if (hasImage)
+                            TextButton.icon(
+                              icon: const Icon(Icons.delete_outline_rounded),
+                              label: const Text('Remove photo'),
+                              onPressed: () {
+                                setState(() {
+                                  selectedImagePath = null;
+                                });
+                              },
+                            ),
+                        ],
+                      ),
                       const SizedBox(height: 16),
                       FilledButton(
                         onPressed: () async {
@@ -180,6 +225,7 @@ class MeasurementsPage extends StatelessWidget {
                           await context.read<AppState>().addBodyMeasurement(
                             date: selectedDate,
                             weight: double.parse(weight.text.trim()),
+                            imagePath: selectedImagePath,
                             waist: _parseNullable(waist.text),
                             chest: _parseNullable(chest.text),
                             hips: _parseNullable(hips.text),
@@ -227,17 +273,122 @@ class MeasurementsPage extends StatelessWidget {
       },
     );
   }
+
+  Future<String> _persistMeasurementImage(String sourcePath) async {
+    final source = File(sourcePath);
+    final directory = await getApplicationDocumentsDirectory();
+    final measurementDir = Directory(
+      '${directory.path}/body_measurement_images',
+    );
+    if (!await measurementDir.exists()) {
+      await measurementDir.create(recursive: true);
+    }
+
+    final extension = source.path.contains('.')
+        ? source.path.substring(source.path.lastIndexOf('.'))
+        : '.jpg';
+    final fileName =
+        'measurement_${DateTime.now().microsecondsSinceEpoch}$extension';
+    final targetPath = '${measurementDir.path}/$fileName';
+    final copied = await source.copy(targetPath);
+    return copied.path;
+  }
+}
+
+class _MeasurementCard extends StatelessWidget {
+  const _MeasurementCard({required this.item});
+
+  final BodyMeasurementEntry item;
+
+  @override
+  Widget build(BuildContext context) {
+    final appState = context.read<AppState>();
+    final hasImage =
+        item.imagePath != null &&
+        item.imagePath!.isNotEmpty &&
+        File(item.imagePath!).existsSync();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    DateFormat('d MMM yyyy').format(item.date),
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline_rounded),
+                  onPressed: () => appState.removeBodyMeasurement(item.id),
+                ),
+              ],
+            ),
+            if (hasImage)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.file(
+                    File(item.imagePath!),
+                    height: 180,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _chip('Weight', '${item.weight.toStringAsFixed(1)} kg'),
+                if (item.waist != null)
+                  _chip('Waist', '${item.waist!.toStringAsFixed(1)} cm'),
+                if (item.chest != null)
+                  _chip('Chest', '${item.chest!.toStringAsFixed(1)} cm'),
+                if (item.hips != null)
+                  _chip('Hips', '${item.hips!.toStringAsFixed(1)} cm'),
+                if (item.biceps != null)
+                  _chip('Biceps', '${item.biceps!.toStringAsFixed(1)} cm'),
+                if (item.thigh != null)
+                  _chip('Thigh', '${item.thigh!.toStringAsFixed(1)} cm'),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _chip(String label, String value) {
+    return Chip(
+      label: Text('$label: $value'),
+      visualDensity: VisualDensity.compact,
+    );
+  }
 }
 
 class _ProgressHighlights extends StatelessWidget {
+  const _ProgressHighlights({required this.entries});
+
+  final List<BodyMeasurementEntry> entries;
+
   @override
   Widget build(BuildContext context) {
-    final measurements = context.watch<AppState>().bodyMeasurements;
-    final latest = measurements.first;
-    final oldest = measurements.last;
+    final latest = entries.first;
+    final oldest = entries.last;
 
     final weightDelta = latest.weight - oldest.weight;
     final waistDelta = _delta(latest.waist, oldest.waist);
+    final chestDelta = _delta(latest.chest, oldest.chest);
+    final hipsDelta = _delta(latest.hips, oldest.hips);
+
+    final ascendingByDate = [...entries]
+      ..sort((a, b) => a.date.compareTo(b.date));
 
     return Card(
       child: Padding(
@@ -257,7 +408,45 @@ class _ProgressHighlights extends StatelessWidget {
                 Chip(label: Text('Weight Δ ${_format(weightDelta)} kg')),
                 if (waistDelta != null)
                   Chip(label: Text('Waist Δ ${_format(waistDelta)} cm')),
+                if (chestDelta != null)
+                  Chip(label: Text('Chest Δ ${_format(chestDelta)} cm')),
+                if (hipsDelta != null)
+                  Chip(label: Text('Hips Δ ${_format(hipsDelta)} cm')),
               ],
+            ),
+            const SizedBox(height: 12),
+            _TrendRow(
+              title: 'Weight',
+              unit: 'kg',
+              values: ascendingByDate.map((e) => e.weight).toList(),
+              preferDecrease: true,
+            ),
+            _TrendRow(
+              title: 'Waist',
+              unit: 'cm',
+              values: ascendingByDate
+                  .map((e) => e.waist)
+                  .whereType<double>()
+                  .toList(),
+              preferDecrease: true,
+            ),
+            _TrendRow(
+              title: 'Chest',
+              unit: 'cm',
+              values: ascendingByDate
+                  .map((e) => e.chest)
+                  .whereType<double>()
+                  .toList(),
+              preferDecrease: false,
+            ),
+            _TrendRow(
+              title: 'Hips',
+              unit: 'cm',
+              values: ascendingByDate
+                  .map((e) => e.hips)
+                  .whereType<double>()
+                  .toList(),
+              preferDecrease: true,
             ),
           ],
         ),
@@ -273,3 +462,116 @@ class _ProgressHighlights extends StatelessWidget {
     return '$prefix${value.toStringAsFixed(1)}';
   }
 }
+
+class _TrendRow extends StatelessWidget {
+  const _TrendRow({
+    required this.title,
+    required this.unit,
+    required this.values,
+    required this.preferDecrease,
+  });
+
+  final String title;
+  final String unit;
+  final List<double> values;
+  final bool preferDecrease;
+
+  @override
+  Widget build(BuildContext context) {
+    if (values.length < 2) return const SizedBox.shrink();
+
+    final previous = values[values.length - 2];
+    final latest = values.last;
+    final delta = latest - previous;
+
+    const epsilon = 0.05;
+    final trend = delta.abs() <= epsilon
+        ? _TrendState.neutral
+        : (delta > 0 ? _TrendState.up : _TrendState.down);
+
+    final isGood = switch (trend) {
+      _TrendState.neutral => null,
+      _TrendState.up => !preferDecrease,
+      _TrendState.down => preferDecrease,
+    };
+
+    final icon = switch (trend) {
+      _TrendState.up => Icons.expand_less_rounded,
+      _TrendState.down => Icons.expand_more_rounded,
+      _TrendState.neutral => Icons.chevron_right_rounded,
+    };
+
+    final iconColor = switch (isGood) {
+      true => Colors.green.shade600,
+      false => Colors.red.shade600,
+      null => Theme.of(context).colorScheme.onSurface.withOpacity(0.55),
+    };
+
+    final deltaText =
+        '${delta > 0 ? '+' : ''}${delta.toStringAsFixed(1)} $unit';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 68,
+            child: Text(title, style: Theme.of(context).textTheme.bodyMedium),
+          ),
+          Expanded(child: _MiniBars(values: values)),
+          const SizedBox(width: 8),
+          Icon(icon, color: iconColor),
+          const SizedBox(width: 4),
+          SizedBox(
+            width: 64,
+            child: Text(
+              deltaText,
+              textAlign: TextAlign.right,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniBars extends StatelessWidget {
+  const _MiniBars({required this.values});
+
+  final List<double> values;
+
+  @override
+  Widget build(BuildContext context) {
+    final count = values.length > 8 ? 8 : values.length;
+    final recent = values.sublist(values.length - count);
+    final min = recent.reduce((a, b) => a < b ? a : b);
+    final max = recent.reduce((a, b) => a > b ? a : b);
+    final range = (max - min).abs();
+
+    return SizedBox(
+      height: 34,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: recent.map((value) {
+          final normalized = range < 0.001 ? 0.5 : (value - min) / range;
+          final barHeight = 8 + (normalized * 22);
+          return Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 1.5),
+              child: Container(
+                height: barHeight,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+enum _TrendState { up, down, neutral }
