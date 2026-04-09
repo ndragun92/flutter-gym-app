@@ -19,17 +19,17 @@ class NotificationService {
   bool _initialized = false;
 
   static const _mealChannel = AndroidNotificationChannel(
-    'meal_reminders',
+    'meal_reminders_alarm',
     'Meal reminders',
     description: 'Meal schedule notifications',
-    importance: Importance.high,
+    importance: Importance.max,
   );
 
   static const _gymChannel = AndroidNotificationChannel(
-    'gym_reminders',
+    'gym_reminders_alarm',
     'Gym reminders',
     description: 'Workout schedule notifications',
-    importance: Importance.high,
+    importance: Importance.max,
   );
 
   Future<void> initialize() async {
@@ -90,11 +90,15 @@ class NotificationService {
         firstDate,
         const NotificationDetails(
           android: AndroidNotificationDetails(
-            'meal_reminders',
+            'meal_reminders_alarm',
             'Meal reminders',
             channelDescription: 'Meal schedule notifications',
-            importance: Importance.high,
-            priority: Priority.high,
+            importance: Importance.max,
+            priority: Priority.max,
+            category: AndroidNotificationCategory.alarm,
+            playSound: true,
+            enableVibration: true,
+            visibility: NotificationVisibility.public,
           ),
           iOS: DarwinNotificationDetails(),
         ),
@@ -122,11 +126,15 @@ class NotificationService {
         firstDate,
         const NotificationDetails(
           android: AndroidNotificationDetails(
-            'gym_reminders',
+            'gym_reminders_alarm',
             'Gym reminders',
             channelDescription: 'Workout schedule notifications',
-            importance: Importance.high,
-            priority: Priority.high,
+            importance: Importance.max,
+            priority: Priority.max,
+            category: AndroidNotificationCategory.reminder,
+            playSound: true,
+            enableVibration: true,
+            visibility: NotificationVisibility.public,
           ),
           iOS: DarwinNotificationDetails(),
         ),
