@@ -9,6 +9,7 @@ import 'models/workout_entry.dart';
 import 'screens/dashboard_page.dart';
 import 'screens/measurements_page.dart';
 import 'screens/nutrition_page.dart';
+import 'screens/settings_page.dart';
 import 'screens/workout_page.dart';
 import 'services/notification_service.dart';
 import 'state/app_state.dart';
@@ -646,6 +647,11 @@ class _RootShellState extends State<_RootShell> {
                       selectedIcon: Icon(Icons.fitness_center_rounded),
                       label: 'Gym',
                     ),
+                    NavigationDestination(
+                      icon: Icon(Icons.person_outline_rounded),
+                      selectedIcon: Icon(Icons.person_rounded),
+                      label: 'Profile',
+                    ),
                   ],
                 ),
               ),
@@ -676,12 +682,13 @@ class _RootShellState extends State<_RootShell> {
                       NutritionPage(isActive: index == 1),
                       const MeasurementsPage(),
                       const WorkoutPage(),
+                      const SettingsPage(),
                     ],
                   ),
                 ),
         ],
       ),
-      floatingActionButton: index == 2
+      floatingActionButton: index == 2 || index == 4
           ? null
           : FloatingActionButton.extended(
               onPressed: _openQuickAddSheet,

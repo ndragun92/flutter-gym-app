@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/body_measurement_entry.dart';
 import '../models/meal_entry.dart';
+import '../models/user_profile.dart';
 import '../models/workout_entry.dart';
 import '../services/notification_service.dart';
 
@@ -23,6 +24,7 @@ class AppState extends ChangeNotifier {
   static const _workoutLogsKey = 'workout_logs';
   static const _gymScheduleKey = 'gym_schedule';
   static const _goalsKey = 'goals';
+  static const _userProfileKey = 'user_profile';
 
   bool isLoading = true;
 
@@ -33,6 +35,7 @@ class AppState extends ChangeNotifier {
   List<BodyMeasurementEntry> bodyMeasurements = [];
   List<WorkoutEntry> workoutEntries = [];
   List<GymSchedule> gymSchedules = [];
+  UserProfile? userProfile;
 
   // Personalized defaults for slow cut while preserving muscle.
   int dailyCalorieGoal = 2500;
@@ -79,6 +82,17 @@ class AppState extends ChangeNotifier {
       prefs.getStringList(_workoutLogsKey),
       (e) => WorkoutEntry.fromMap(e),
     )..sort((a, b) => b.date.compareTo(a.date));
+
+    final profileRaw = prefs.getString(_userProfileKey);
+    if (profileRaw != null && profileRaw.isNotEmpty) {
+      try {
+        userProfile = UserProfile.fromMap(
+          jsonDecode(profileRaw) as Map<String, dynamic>,
+        );
+      } catch (_) {
+        userProfile = null;
+      }
+    }
 
     gymSchedules =
         _decodeList(
@@ -173,6 +187,15 @@ class AppState extends ChangeNotifier {
         'weeklyWorkoutGoal': weeklyWorkoutGoal,
       }),
     );
+  }
+
+  Future<void> _saveUserProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (userProfile == null) {
+      await prefs.remove(_userProfileKey);
+      return;
+    }
+    await prefs.setString(_userProfileKey, userProfile!.toJson());
   }
 
   List<T> _decodeList<T>(
@@ -716,6 +739,113 @@ class AppState extends ChangeNotifier {
     dailyCalorieGoal = dailyCalories.clamp(1, 20000);
     dailyProteinGoal = dailyProtein.clamp(1, 1000);
     weeklyWorkoutGoal = weeklyWorkouts.clamp(1, 14);
+    await _saveGoals();
+    notifyListeners();
+  }
+
+  int? get profileAge {
+    final profile = userProfile;
+    if (profile == null) return null;
+    final age = profile.ageAt(DateTime.now());
+    if (age < 0) return null;
+    return age;
+  }
+
+  double? get latestWeightKg =>
+      bodyMeasurements.isEmpty ? null : bodyMeasurements.first.weight;
+
+  double? get currentBmi {
+    final profile = userProfile;
+    final weight = latestWeightKg;
+    if (profile == null || weight == null || profile.heightCm <= 0) {
+      return null;
+    }
+    final heightInMeters = profile.heightCm / 100;
+    final bmi = weight / (heightInMeters * heightInMeters);
+    return bmi.isFinite ? bmi : null;
+  }
+
+  String? get currentBmiCategory {
+    final bmi = currentBmi;
+    if (bmi == null) return null;
+    if (bmi < 18.5) return 'Underweight';
+    if (bmi < 25) return 'Healthy';
+    if (bmi < 30) return 'Overweight';
+    return 'Obesity';
+  }
+
+  double? get healthyWeightMinKg {
+    final profile = userProfile;
+    if (profile == null || profile.heightCm <= 0) return null;
+    final heightInMeters = profile.heightCm / 100;
+    return 18.5 * heightInMeters * heightInMeters;
+  }
+
+  double? get healthyWeightMaxKg {
+    final profile = userProfile;
+    if (profile == null || profile.heightCm <= 0) return null;
+    final heightInMeters = profile.heightCm / 100;
+    return 24.9 * heightInMeters * heightInMeters;
+  }
+
+  int? get suggestedDailyCalories {
+    final bmi = currentBmi;
+    if (bmi == null) return null;
+
+    var adjusted = dailyCalorieGoal;
+    if (bmi >= 30) {
+      adjusted -= 500;
+    } else if (bmi >= 27) {
+      adjusted -= 350;
+    } else if (bmi >= 25) {
+      adjusted -= 250;
+    } else if (bmi < 18.5) {
+      adjusted += 250;
+    }
+    return adjusted.clamp(1200, 4000);
+  }
+
+  double? get suggestedDailyProtein {
+    final weight = latestWeightKg;
+    if (weight == null) return null;
+    return (weight * 1.8).clamp(60, 260);
+  }
+
+  int? get suggestedWeeklyWorkouts {
+    final bmi = currentBmi;
+    if (bmi == null) return null;
+    if (bmi >= 30) return 5;
+    if (bmi >= 25) return 4;
+    return 4;
+  }
+
+  Future<void> updateUserProfile({
+    required String fullName,
+    required DateTime birthDate,
+    required double heightCm,
+    String? profileImagePath,
+  }) async {
+    final previousImagePath = userProfile?.profileImagePath;
+    userProfile = UserProfile(
+      fullName: fullName,
+      birthDate: birthDate,
+      heightCm: heightCm.clamp(80, 260),
+      profileImagePath: profileImagePath,
+    );
+    await _saveUserProfile();
+    await _deleteLocalImageIfObsolete(previousImagePath, profileImagePath);
+    notifyListeners();
+  }
+
+  Future<void> applySmartGoalsFromProfile() async {
+    final calories = suggestedDailyCalories;
+    final protein = suggestedDailyProtein;
+    final workouts = suggestedWeeklyWorkouts;
+    if (calories == null || protein == null || workouts == null) return;
+
+    dailyCalorieGoal = calories;
+    dailyProteinGoal = protein;
+    weeklyWorkoutGoal = workouts;
     await _saveGoals();
     notifyListeners();
   }

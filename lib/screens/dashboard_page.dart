@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -111,6 +112,8 @@ class DashboardPage extends StatelessWidget {
             context,
           ).textTheme.bodyLarge?.copyWith(color: secondaryText),
         ),
+        const SizedBox(height: 12),
+        _ProfileSnapshotCard(appState: appState),
         const SizedBox(height: 16),
         _SummaryCard(
           title: 'Calories today',
@@ -346,6 +349,73 @@ class DashboardPage extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _ProfileSnapshotCard extends StatelessWidget {
+  const _ProfileSnapshotCard({required this.appState});
+
+  final AppState appState;
+
+  @override
+  Widget build(BuildContext context) {
+    final profile = appState.userProfile;
+    final hasProfile = profile != null;
+    final profileImagePath = profile?.profileImagePath;
+    final hasImage =
+        hasProfile &&
+        profileImagePath != null &&
+        profileImagePath.isNotEmpty &&
+        File(profileImagePath).existsSync();
+
+    final bmi = appState.currentBmi;
+    final bmiLabel = appState.currentBmiCategory;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 25,
+              backgroundImage: hasImage
+                  ? FileImage(File(profileImagePath))
+                  : null,
+              child: hasImage ? null : const Icon(Icons.person_rounded),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    profile?.fullName ?? 'Set up your profile',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    !hasProfile
+                        ? 'Add full name, birth date, and height in Profile tab.'
+                        : [
+                            if (appState.profileAge != null)
+                              '${appState.profileAge} yrs',
+                            '${profile.heightCm.toStringAsFixed(1)} cm',
+                            if (bmi != null)
+                              'BMI ${bmi.toStringAsFixed(1)} (${bmiLabel ?? ''})',
+                          ].join(' · '),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withOpacity(0.72),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
