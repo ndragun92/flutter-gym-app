@@ -41,6 +41,39 @@ class DashboardPage extends StatelessWidget {
     final weeklyWorkouts = appState.workoutEntries
         .where((entry) => !entry.date.isBefore(startOfWeek))
         .length;
+    final hasWorkoutToday = appState.workoutEntries.any(
+      (entry) =>
+          entry.date.year == now.year &&
+          entry.date.month == now.month &&
+          entry.date.day == now.day,
+    );
+    final proteinLeft = (appState.dailyProteinGoal - totalProtein).clamp(
+      0.0,
+      9999.0,
+    );
+    final calorieDelta = appState.dailyCalorieGoal - totalCalories;
+    final workoutsLeft = (appState.weeklyWorkoutGoal - weeklyWorkouts).clamp(
+      0,
+      99,
+    );
+
+    final calorieRatio = appState.dailyCalorieGoal <= 0
+        ? 0.0
+        : totalCalories / appState.dailyCalorieGoal;
+    final calorieAdherence = calorieRatio <= 1
+        ? calorieRatio
+        : (2 - calorieRatio).clamp(0.0, 1.0);
+    final proteinProgress = appState.dailyProteinGoal <= 0
+        ? 0.0
+        : (totalProtein / appState.dailyProteinGoal).clamp(0.0, 1.0);
+    final todayCompletion =
+        (((todaysMeals.isNotEmpty ? 1.0 : 0.0) +
+                    calorieAdherence +
+                    proteinProgress +
+                    (hasWorkoutToday ? 1.0 : 0.0)) /
+                4 *
+                100)
+            .round();
 
     final nextMeal = _nextMeal(appState);
     final nextGym = _nextGym(appState.gymSchedules);
@@ -92,6 +125,20 @@ class DashboardPage extends StatelessWidget {
           proteinGoal: appState.dailyProteinGoal,
           workoutGoal: appState.weeklyWorkoutGoal,
           onEditGoals: () => _openGoalsDialog(context, appState),
+        ),
+        const SizedBox(height: 12),
+        _TodayCompletionCard(
+          score: todayCompletion,
+          mealLogged: todaysMeals.isNotEmpty,
+          proteinGoalReached: proteinLeft <= 0.1,
+          caloriesOnTrack: calorieDelta >= 0,
+          workoutLogged: hasWorkoutToday,
+        ),
+        const SizedBox(height: 12),
+        _SmartNudgesCard(
+          proteinLeft: proteinLeft,
+          calorieDelta: calorieDelta,
+          workoutsLeft: workoutsLeft,
         ),
         const SizedBox(height: 12),
         Row(
@@ -409,6 +456,213 @@ class _ProgressRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _TodayCompletionCard extends StatelessWidget {
+  const _TodayCompletionCard({
+    required this.score,
+    required this.mealLogged,
+    required this.proteinGoalReached,
+    required this.caloriesOnTrack,
+    required this.workoutLogged,
+  });
+
+  final int score;
+  final bool mealLogged;
+  final bool proteinGoalReached;
+  final bool caloriesOnTrack;
+  final bool workoutLogged;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalizedScore = score.clamp(0, 100);
+    final progress = (normalizedScore / 100).clamp(0.0, 1.0);
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Today completion score',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                SizedBox(
+                  width: 72,
+                  height: 72,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      CircularProgressIndicator(
+                        value: progress,
+                        strokeWidth: 8,
+                        backgroundColor: colorScheme.surfaceContainerHighest,
+                      ),
+                      Center(
+                        child: Text(
+                          '$normalizedScore%',
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    normalizedScore >= 80
+                        ? 'Excellent pace today. Keep this consistency.'
+                        : normalizedScore >= 60
+                        ? 'Good progress. One more action can push it higher.'
+                        : 'Start with one quick action: meal log or workout log.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                _StatusChip(
+                  label: 'Meal logged',
+                  done: mealLogged,
+                  icon: Icons.restaurant_rounded,
+                ),
+                _StatusChip(
+                  label: 'Protein target',
+                  done: proteinGoalReached,
+                  icon: Icons.egg_alt_rounded,
+                ),
+                _StatusChip(
+                  label: 'Calories on track',
+                  done: caloriesOnTrack,
+                  icon: Icons.local_fire_department_rounded,
+                ),
+                _StatusChip(
+                  label: 'Workout logged',
+                  done: workoutLogged,
+                  icon: Icons.fitness_center_rounded,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SmartNudgesCard extends StatelessWidget {
+  const _SmartNudgesCard({
+    required this.proteinLeft,
+    required this.calorieDelta,
+    required this.workoutsLeft,
+  });
+
+  final double proteinLeft;
+  final int calorieDelta;
+  final int workoutsLeft;
+
+  @override
+  Widget build(BuildContext context) {
+    final workoutSuffix = workoutsLeft == 1 ? '' : 's';
+    final nudges = <String>[
+      proteinLeft > 0.1
+          ? 'Protein left today: ${proteinLeft.toStringAsFixed(0)} g. Add a lean-protein meal.'
+          : 'Protein target reached today. Great job.',
+      calorieDelta >= 0
+          ? '$calorieDelta kcal remaining today.'
+          : 'You are ${-calorieDelta} kcal above target. Keep the next meal lighter.',
+      workoutsLeft > 0
+          ? '$workoutsLeft workout$workoutSuffix left this week to hit goal.'
+          : 'Weekly workout goal completed. Nice momentum.',
+    ];
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Smart nudges',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            for (final nudge in nudges) ...[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Icon(
+                      Icons.bolt_rounded,
+                      size: 16,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      nudge,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ),
+                ],
+              ),
+              if (nudge != nudges.last) const SizedBox(height: 6),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({
+    required this.label,
+    required this.done,
+    required this.icon,
+  });
+
+  final String label;
+  final bool done;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: done
+            ? colorScheme.primary.withOpacity(0.16)
+            : colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            done ? Icons.check_circle_rounded : icon,
+            size: 14,
+            color: done ? colorScheme.primary : colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 6),
+          Text(label, style: Theme.of(context).textTheme.labelSmall),
+        ],
+      ),
     );
   }
 }
