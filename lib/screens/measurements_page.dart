@@ -13,6 +13,7 @@ class MeasurementsPage extends StatelessWidget {
     final list = appState.bodyMeasurements;
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

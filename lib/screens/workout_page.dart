@@ -13,6 +13,7 @@ class WorkoutPage extends StatelessWidget {
     final appState = context.watch<AppState>();
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

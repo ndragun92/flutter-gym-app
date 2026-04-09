@@ -55,6 +55,7 @@ class _NutritionPageState extends State<NutritionPage> {
     ).colorScheme.onSurface.withOpacity(0.7);
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
