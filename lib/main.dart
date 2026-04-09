@@ -44,13 +44,6 @@ class _RootShell extends StatefulWidget {
 class _RootShellState extends State<_RootShell> {
   int index = 0;
 
-  final pages = const [
-    DashboardPage(),
-    NutritionPage(),
-    MeasurementsPage(),
-    WorkoutPage(),
-  ];
-
   @override
   Widget build(BuildContext context) {
     final loading = context.watch<AppState>().isLoading;
@@ -59,7 +52,15 @@ class _RootShellState extends State<_RootShell> {
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
-              child: IndexedStack(index: index, children: pages),
+              child: IndexedStack(
+                index: index,
+                children: [
+                  const DashboardPage(),
+                  NutritionPage(isActive: index == 1),
+                  const MeasurementsPage(),
+                  const WorkoutPage(),
+                ],
+              ),
             ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,

@@ -132,10 +132,11 @@ class MealSchedule {
       MealSchedule.fromMap(jsonDecode(source) as Map<String, dynamic>);
 }
 
-class MealPlanItem {
-  MealPlanItem({
+class MealItem {
+  MealItem({
     required this.id,
     required this.name,
+    required this.portion,
     required this.calories,
     required this.protein,
     required this.carbs,
@@ -144,22 +145,25 @@ class MealPlanItem {
 
   final String id;
   final String name;
+  final String portion;
   final int calories;
   final double protein;
   final double carbs;
   final double fat;
 
-  MealPlanItem copyWith({
+  MealItem copyWith({
     String? id,
     String? name,
+    String? portion,
     int? calories,
     double? protein,
     double? carbs,
     double? fat,
   }) {
-    return MealPlanItem(
+    return MealItem(
       id: id ?? this.id,
       name: name ?? this.name,
+      portion: portion ?? this.portion,
       calories: calories ?? this.calories,
       protein: protein ?? this.protein,
       carbs: carbs ?? this.carbs,
@@ -171,6 +175,76 @@ class MealPlanItem {
     return {
       'id': id,
       'name': name,
+      'portion': portion,
+      'calories': calories,
+      'protein': protein,
+      'carbs': carbs,
+      'fat': fat,
+    };
+  }
+
+  factory MealItem.fromMap(Map<String, dynamic> map) {
+    return MealItem(
+      id: map['id'] as String,
+      name: map['name'] as String,
+      portion: (map['portion'] as String?) ?? '',
+      calories: map['calories'] as int,
+      protein: (map['protein'] as num).toDouble(),
+      carbs: (map['carbs'] as num).toDouble(),
+      fat: (map['fat'] as num).toDouble(),
+    );
+  }
+
+  String toJson() => jsonEncode(toMap());
+
+  factory MealItem.fromJson(String source) =>
+      MealItem.fromMap(jsonDecode(source) as Map<String, dynamic>);
+}
+
+class MealPlanItem {
+  MealPlanItem({
+    required this.id,
+    required this.name,
+    required this.mealItemIds,
+    required this.calories,
+    required this.protein,
+    required this.carbs,
+    required this.fat,
+  });
+
+  final String id;
+  final String name;
+  final List<String> mealItemIds;
+  final int calories;
+  final double protein;
+  final double carbs;
+  final double fat;
+
+  MealPlanItem copyWith({
+    String? id,
+    String? name,
+    List<String>? mealItemIds,
+    int? calories,
+    double? protein,
+    double? carbs,
+    double? fat,
+  }) {
+    return MealPlanItem(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      mealItemIds: mealItemIds ?? this.mealItemIds,
+      calories: calories ?? this.calories,
+      protein: protein ?? this.protein,
+      carbs: carbs ?? this.carbs,
+      fat: fat ?? this.fat,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'mealItemIds': mealItemIds,
       'calories': calories,
       'protein': protein,
       'carbs': carbs,
@@ -182,10 +256,13 @@ class MealPlanItem {
     return MealPlanItem(
       id: map['id'] as String,
       name: map['name'] as String,
-      calories: map['calories'] as int,
-      protein: (map['protein'] as num).toDouble(),
-      carbs: (map['carbs'] as num).toDouble(),
-      fat: (map['fat'] as num).toDouble(),
+      mealItemIds: ((map['mealItemIds'] as List<dynamic>?) ?? const [])
+          .map((e) => e as String)
+          .toList(),
+      calories: (map['calories'] as int?) ?? 0,
+      protein: (map['protein'] as num?)?.toDouble() ?? 0,
+      carbs: (map['carbs'] as num?)?.toDouble() ?? 0,
+      fat: (map['fat'] as num?)?.toDouble() ?? 0,
     );
   }
 

@@ -5,8 +5,43 @@ import 'package:provider/provider.dart';
 import '../models/meal_entry.dart';
 import '../state/app_state.dart';
 
-class NutritionPage extends StatelessWidget {
-  const NutritionPage({super.key});
+class NutritionPage extends StatefulWidget {
+  const NutritionPage({super.key, this.isActive = true});
+
+  final bool isActive;
+
+  @override
+  State<NutritionPage> createState() => _NutritionPageState();
+}
+
+class _NutritionPageState extends State<NutritionPage> {
+  int _mealLogResetVersion = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _resetMealLogExpansion();
+  }
+
+  @override
+  void didUpdateWidget(covariant NutritionPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive && !oldWidget.isActive) {
+      _resetMealLogExpansion();
+    }
+  }
+
+  void _resetMealLogExpansion() {
+    if (!mounted) return;
+    setState(() {
+      _mealLogResetVersion += 1;
+    });
+  }
+
+  String _dateKey(DateTime value) {
+    final day = DateTime(value.year, value.month, value.day);
+    return '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,6 +69,8 @@ class NutritionPage extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           _scheduleSection(context, appState),
+          const SizedBox(height: 12),
+          _mealItemsSection(context, appState),
           const SizedBox(height: 12),
           _mealPlanSection(context, appState),
           const SizedBox(height: 12),
@@ -107,6 +144,8 @@ class NutritionPage extends StatelessWidget {
   }
 
   Widget _mealPlanSection(BuildContext context, AppState state) {
+    final mealItemsById = {for (final item in state.mealItems) item.id: item};
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -142,8 +181,9 @@ class NutritionPage extends StatelessWidget {
                   ),
                   title: Text(mealPlan.name),
                   subtitle: Text(
-                    '${mealPlan.calories} kcal · P ${mealPlan.protein.toStringAsFixed(1)} · C ${mealPlan.carbs.toStringAsFixed(1)} · F ${mealPlan.fat.toStringAsFixed(1)}',
+                    '${mealPlan.mealItemIds.length} items · ${mealPlan.calories} kcal · P ${mealPlan.protein.toStringAsFixed(1)} · C ${mealPlan.carbs.toStringAsFixed(1)} · F ${mealPlan.fat.toStringAsFixed(1)}\n${mealPlan.mealItemIds.map((id) => mealItemsById[id]?.name ?? 'Unknown').join(', ')}',
                   ),
+                  isThreeLine: true,
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -183,7 +223,81 @@ class NutritionPage extends StatelessWidget {
     );
   }
 
+  Widget _mealItemsSection(BuildContext context, AppState state) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'Meal items',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const Spacer(),
+                IconButton(
+                  tooltip: 'Add meal item',
+                  icon: const Icon(Icons.add_rounded),
+                  onPressed: () => _openAddOrEditMealItemDialog(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            if (state.mealItems.isEmpty)
+              Text(
+                'No meal items yet. Add ingredients like Egg, Chicken Breast, Rice...',
+                style: Theme.of(context).textTheme.bodyMedium,
+              )
+            else
+              ...state.mealItems.map((item) {
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.egg_alt_rounded),
+                  ),
+                  title: Text(item.name),
+                  subtitle: Text(
+                    '${item.portion} · ${item.calories} kcal\nP ${item.protein.toStringAsFixed(1)} · C ${item.carbs.toStringAsFixed(1)} · F ${item.fat.toStringAsFixed(1)}',
+                  ),
+                  isThreeLine: true,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'Edit meal item',
+                        icon: const Icon(Icons.edit_outlined),
+                        onPressed: () => _openAddOrEditMealItemDialog(
+                          context,
+                          existing: item,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Delete meal item',
+                        icon: const Icon(Icons.delete_outline_rounded),
+                        onPressed: () => state.removeMealItem(item.id),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _mealLogSection(BuildContext context, AppState state) {
+    final grouped = <DateTime, List<MealEntry>>{};
+    for (final meal in state.mealEntries) {
+      final day = DateTime(meal.ateAt.year, meal.ateAt.month, meal.ateAt.day);
+      grouped.putIfAbsent(day, () => []).add(meal);
+    }
+
+    final today = DateTime.now();
+    final todayKey = _dateKey(today);
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -198,21 +312,43 @@ class NutritionPage extends StatelessWidget {
                 style: Theme.of(context).textTheme.bodyMedium,
               )
             else
-              ...state.mealEntries.take(30).map((MealEntry meal) {
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.fastfood_rounded),
+              ...grouped.entries.map((entry) {
+                final day = entry.key;
+                final meals = entry.value;
+                final dayKey = _dateKey(day);
+                final totalCalories = meals.fold<int>(
+                  0,
+                  (sum, meal) => sum + meal.calories,
+                );
+
+                return ExpansionTile(
+                  key: ValueKey('${_mealLogResetVersion}_$dayKey'),
+                  tilePadding: EdgeInsets.zero,
+                  childrenPadding: EdgeInsets.zero,
+                  initiallyExpanded: dayKey == todayKey,
+                  title: Text(
+                    dayKey == todayKey
+                        ? 'Today'
+                        : DateFormat('EEE, d MMM yyyy').format(day),
                   ),
-                  title: Text(meal.name),
-                  subtitle: Text(
-                    '${DateFormat('d MMM HH:mm').format(meal.ateAt)} · ${meal.calories} kcal\nP ${meal.protein.toStringAsFixed(1)} · C ${meal.carbs.toStringAsFixed(1)} · F ${meal.fat.toStringAsFixed(1)}',
-                  ),
-                  isThreeLine: true,
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline_rounded),
-                    onPressed: () => state.removeMealEntry(meal.id),
-                  ),
+                  subtitle: Text('${meals.length} meals · $totalCalories kcal'),
+                  children: meals.map((MealEntry meal) {
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const CircleAvatar(
+                        child: Icon(Icons.fastfood_rounded),
+                      ),
+                      title: Text(meal.name),
+                      subtitle: Text(
+                        '${DateFormat('HH:mm').format(meal.ateAt)} · ${meal.calories} kcal\nP ${meal.protein.toStringAsFixed(1)} · C ${meal.carbs.toStringAsFixed(1)} · F ${meal.fat.toStringAsFixed(1)}',
+                      ),
+                      isThreeLine: true,
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete_outline_rounded),
+                        onPressed: () => state.removeMealEntry(meal.id),
+                      ),
+                    );
+                  }).toList(),
                 );
               }),
           ],
@@ -321,14 +457,10 @@ class NutritionPage extends StatelessWidget {
   }) async {
     final formKey = GlobalKey<FormState>();
     final name = TextEditingController(text: existing?.name ?? '');
-    final calories = TextEditingController(
-      text: existing?.calories.toString() ?? '',
-    );
-    final protein = TextEditingController(
-      text: existing?.protein.toString() ?? '',
-    );
-    final carbs = TextEditingController(text: existing?.carbs.toString() ?? '');
-    final fat = TextEditingController(text: existing?.fat.toString() ?? '');
+    final state = context.read<AppState>();
+    final selectedMealItemIds = <String>{
+      ...(existing?.mealItemIds ?? const []),
+    };
 
     await showModalBottomSheet<void>(
       context: context,
@@ -367,38 +499,62 @@ class NutritionPage extends StatelessWidget {
                             (v == null || v.trim().isEmpty) ? 'Required' : null,
                       ),
                       const SizedBox(height: 10),
-                      _number(
-                        calories,
-                        'Calories (kcal)',
-                        isInt: true,
-                        requiredField: true,
+                      Text(
+                        'Select meal items for this meal',
+                        style: Theme.of(context).textTheme.titleSmall,
                       ),
-                      const SizedBox(height: 10),
-                      _number(protein, 'Protein (g)', requiredField: true),
-                      const SizedBox(height: 10),
-                      _number(carbs, 'Carbs (g)', requiredField: true),
-                      const SizedBox(height: 10),
-                      _number(fat, 'Fat (g)', requiredField: true),
+                      const SizedBox(height: 6),
+                      if (state.mealItems.isEmpty)
+                        Text(
+                          'No meal items available. Add them first in Meal items section.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        )
+                      else
+                        ...state.mealItems.map((item) {
+                          final selected = selectedMealItemIds.contains(
+                            item.id,
+                          );
+                          return CheckboxListTile(
+                            value: selected,
+                            controlAffinity: ListTileControlAffinity.leading,
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(item.name),
+                            subtitle: Text(
+                              '${item.portion} · ${item.calories} kcal · P ${item.protein.toStringAsFixed(1)} · C ${item.carbs.toStringAsFixed(1)} · F ${item.fat.toStringAsFixed(1)}',
+                            ),
+                            onChanged: (checked) {
+                              setState(() {
+                                if (checked ?? false) {
+                                  selectedMealItemIds.add(item.id);
+                                } else {
+                                  selectedMealItemIds.remove(item.id);
+                                }
+                              });
+                            },
+                          );
+                        }),
                       const SizedBox(height: 16),
                       FilledButton(
                         onPressed: () async {
                           if (!formKey.currentState!.validate()) return;
+                          if (selectedMealItemIds.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Select at least one meal item.'),
+                              ),
+                            );
+                            return;
+                          }
                           if (existing == null) {
                             await context.read<AppState>().addMealPlanItem(
                               name: name.text.trim(),
-                              calories: int.parse(calories.text.trim()),
-                              protein: double.parse(protein.text.trim()),
-                              carbs: double.parse(carbs.text.trim()),
-                              fat: double.parse(fat.text.trim()),
+                              mealItemIds: selectedMealItemIds.toList(),
                             );
                           } else {
                             await context.read<AppState>().updateMealPlanItem(
                               id: existing.id,
                               name: name.text.trim(),
-                              calories: int.parse(calories.text.trim()),
-                              protein: double.parse(protein.text.trim()),
-                              carbs: double.parse(carbs.text.trim()),
-                              fat: double.parse(fat.text.trim()),
+                              mealItemIds: selectedMealItemIds.toList(),
                             );
                           }
                           if (context.mounted) Navigator.pop(context);
@@ -414,6 +570,113 @@ class NutritionPage extends StatelessWidget {
                 ),
               );
             },
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openAddOrEditMealItemDialog(
+    BuildContext context, {
+    MealItem? existing,
+  }) async {
+    final formKey = GlobalKey<FormState>();
+    final name = TextEditingController(text: existing?.name ?? '');
+    final portion = TextEditingController(text: existing?.portion ?? '');
+    final calories = TextEditingController(
+      text: existing?.calories.toString() ?? '',
+    );
+    final protein = TextEditingController(
+      text: existing?.protein.toString() ?? '',
+    );
+    final carbs = TextEditingController(text: existing?.carbs.toString() ?? '');
+    final fat = TextEditingController(text: existing?.fat.toString() ?? '');
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 8,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+          ),
+          child: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    existing == null ? 'Add meal item' : 'Edit meal item',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: name,
+                    decoration: const InputDecoration(labelText: 'Item name'),
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: portion,
+                    decoration: const InputDecoration(
+                      labelText: 'Portion (e.g. 3 eggs, 200g)',
+                    ),
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 10),
+                  _number(
+                    calories,
+                    'Calories (kcal)',
+                    isInt: true,
+                    requiredField: true,
+                  ),
+                  const SizedBox(height: 10),
+                  _number(protein, 'Protein (g)', requiredField: true),
+                  const SizedBox(height: 10),
+                  _number(carbs, 'Carbs (g)', requiredField: true),
+                  const SizedBox(height: 10),
+                  _number(fat, 'Fat (g)', requiredField: true),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: () async {
+                      if (!formKey.currentState!.validate()) return;
+                      if (existing == null) {
+                        await context.read<AppState>().addMealItem(
+                          name: name.text.trim(),
+                          portion: portion.text.trim(),
+                          calories: int.parse(calories.text.trim()),
+                          protein: double.parse(protein.text.trim()),
+                          carbs: double.parse(carbs.text.trim()),
+                          fat: double.parse(fat.text.trim()),
+                        );
+                      } else {
+                        await context.read<AppState>().updateMealItem(
+                          id: existing.id,
+                          name: name.text.trim(),
+                          portion: portion.text.trim(),
+                          calories: int.parse(calories.text.trim()),
+                          protein: double.parse(protein.text.trim()),
+                          carbs: double.parse(carbs.text.trim()),
+                          fat: double.parse(fat.text.trim()),
+                        );
+                      }
+                      if (context.mounted) Navigator.pop(context);
+                    },
+                    child: Text(
+                      existing == null ? 'Save meal item' : 'Update meal item',
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         );
       },

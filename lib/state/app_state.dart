@@ -15,6 +15,7 @@ class AppState extends ChangeNotifier {
 
   static const _mealLogsKey = 'meal_logs';
   static const _mealScheduleKey = 'meal_schedule';
+  static const _mealItemsKey = 'meal_items';
   static const _mealPlanKey = 'meal_plan';
   static const _bodyMeasurementKey = 'body_measurements';
   static const _workoutLogsKey = 'workout_logs';
@@ -24,6 +25,7 @@ class AppState extends ChangeNotifier {
 
   List<MealEntry> mealEntries = [];
   List<MealSchedule> mealSchedules = [];
+  List<MealItem> mealItems = [];
   List<MealPlanItem> mealPlanItems = [];
   List<BodyMeasurementEntry> bodyMeasurements = [];
   List<WorkoutEntry> workoutEntries = [];
@@ -52,6 +54,13 @@ class AppState extends ChangeNotifier {
       prefs.getStringList(_mealPlanKey),
       (e) => MealPlanItem.fromMap(e),
     );
+
+    mealItems = _decodeList(
+      prefs.getStringList(_mealItemsKey),
+      (e) => MealItem.fromMap(e),
+    );
+
+    _recalculateMealPlanTotals();
 
     bodyMeasurements = _decodeList(
       prefs.getStringList(_bodyMeasurementKey),
@@ -134,19 +143,18 @@ class AppState extends ChangeNotifier {
 
   Future<void> addMealPlanItem({
     required String name,
-    required int calories,
-    required double protein,
-    required double carbs,
-    required double fat,
+    required List<String> mealItemIds,
   }) async {
+    final totals = _mealPlanTotalsForItems(mealItemIds);
     mealPlanItems.add(
       MealPlanItem(
         id: _id(),
         name: name,
-        calories: calories,
-        protein: protein,
-        carbs: carbs,
-        fat: fat,
+        mealItemIds: mealItemIds,
+        calories: totals.calories,
+        protein: totals.protein,
+        carbs: totals.carbs,
+        fat: totals.fat,
       ),
     );
     await _saveList(_mealPlanKey, mealPlanItems.map((e) => e.toMap()).toList());
@@ -156,20 +164,19 @@ class AppState extends ChangeNotifier {
   Future<void> updateMealPlanItem({
     required String id,
     required String name,
-    required int calories,
-    required double protein,
-    required double carbs,
-    required double fat,
+    required List<String> mealItemIds,
   }) async {
+    final totals = _mealPlanTotalsForItems(mealItemIds);
     mealPlanItems = mealPlanItems
         .map(
           (e) => e.id == id
               ? e.copyWith(
                   name: name,
-                  calories: calories,
-                  protein: protein,
-                  carbs: carbs,
-                  fat: fat,
+                  mealItemIds: mealItemIds,
+                  calories: totals.calories,
+                  protein: totals.protein,
+                  carbs: totals.carbs,
+                  fat: totals.fat,
                 )
               : e,
         )
@@ -201,6 +208,111 @@ class AppState extends ChangeNotifier {
       fat: item.fat,
       at: at ?? DateTime.now(),
     );
+  }
+
+  Future<void> addMealItem({
+    required String name,
+    required String portion,
+    required int calories,
+    required double protein,
+    required double carbs,
+    required double fat,
+  }) async {
+    mealItems.add(
+      MealItem(
+        id: _id(),
+        name: name,
+        portion: portion,
+        calories: calories,
+        protein: protein,
+        carbs: carbs,
+        fat: fat,
+      ),
+    );
+    await _saveList(_mealItemsKey, mealItems.map((e) => e.toMap()).toList());
+    _recalculateMealPlanTotals();
+    await _saveList(_mealPlanKey, mealPlanItems.map((e) => e.toMap()).toList());
+    notifyListeners();
+  }
+
+  Future<void> updateMealItem({
+    required String id,
+    required String name,
+    required String portion,
+    required int calories,
+    required double protein,
+    required double carbs,
+    required double fat,
+  }) async {
+    mealItems = mealItems
+        .map(
+          (e) => e.id == id
+              ? e.copyWith(
+                  name: name,
+                  portion: portion,
+                  calories: calories,
+                  protein: protein,
+                  carbs: carbs,
+                  fat: fat,
+                )
+              : e,
+        )
+        .toList();
+    await _saveList(_mealItemsKey, mealItems.map((e) => e.toMap()).toList());
+    _recalculateMealPlanTotals();
+    await _saveList(_mealPlanKey, mealPlanItems.map((e) => e.toMap()).toList());
+    notifyListeners();
+  }
+
+  Future<void> removeMealItem(String id) async {
+    mealItems.removeWhere((e) => e.id == id);
+    mealPlanItems = mealPlanItems
+        .map(
+          (e) => e.copyWith(
+            mealItemIds: e.mealItemIds.where((itemId) => itemId != id).toList(),
+          ),
+        )
+        .toList();
+    _recalculateMealPlanTotals();
+    await _saveList(_mealItemsKey, mealItems.map((e) => e.toMap()).toList());
+    await _saveList(_mealPlanKey, mealPlanItems.map((e) => e.toMap()).toList());
+    notifyListeners();
+  }
+
+  _MealTotals _mealPlanTotalsForItems(List<String> mealItemIds) {
+    final byId = {for (final item in mealItems) item.id: item};
+    var calories = 0;
+    var protein = 0.0;
+    var carbs = 0.0;
+    var fat = 0.0;
+
+    for (final itemId in mealItemIds) {
+      final item = byId[itemId];
+      if (item == null) continue;
+      calories += item.calories;
+      protein += item.protein;
+      carbs += item.carbs;
+      fat += item.fat;
+    }
+
+    return _MealTotals(
+      calories: calories,
+      protein: protein,
+      carbs: carbs,
+      fat: fat,
+    );
+  }
+
+  void _recalculateMealPlanTotals() {
+    mealPlanItems = mealPlanItems.map((plan) {
+      final totals = _mealPlanTotalsForItems(plan.mealItemIds);
+      return plan.copyWith(
+        calories: totals.calories,
+        protein: totals.protein,
+        carbs: totals.carbs,
+        fat: totals.fat,
+      );
+    }).toList();
   }
 
   Future<void> addMealSchedule({
@@ -399,4 +511,18 @@ class AppState extends ChangeNotifier {
     await NotificationService.instance.scheduleGymReminders(gymSchedules);
     notifyListeners();
   }
+}
+
+class _MealTotals {
+  const _MealTotals({
+    required this.calories,
+    required this.protein,
+    required this.carbs,
+    required this.fat,
+  });
+
+  final int calories;
+  final double protein;
+  final double carbs;
+  final double fat;
 }
