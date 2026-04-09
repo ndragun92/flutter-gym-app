@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import 'body_gallery_page.dart';
 import '../state/app_state.dart';
@@ -370,6 +371,28 @@ class _SettingsPageState extends State<SettingsPage> {
       final json = await appState.exportBackupJson();
       final suggestedName =
           'birdle_backup_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.json';
+
+      if (Platform.isAndroid || Platform.isIOS) {
+        final tempDir = await getTemporaryDirectory();
+        final exportFile = File('${tempDir.path}/$suggestedName');
+        await exportFile.writeAsString(json);
+
+        await SharePlus.instance.share(
+          ShareParams(
+            files: [XFile(exportFile.path)],
+            subject: 'Birdle backup',
+            text: 'Birdle backup exported on ${DateTime.now().toLocal()}',
+          ),
+        );
+
+        if (mounted) {
+          scaffoldMessenger.showSnackBar(
+            const SnackBar(content: Text('Backup file ready to share')),
+          );
+        }
+        return;
+      }
+
       final location = await getSaveLocation(
         suggestedName: suggestedName,
         acceptedTypeGroups: const [_jsonTypeGroup],
