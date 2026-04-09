@@ -115,9 +115,10 @@ class WorkoutPage extends StatelessWidget {
   Widget _prSection(BuildContext context, AppState appState) {
     final map = <String, WorkoutEntry>{};
     for (final entry in appState.workoutEntries) {
-      final current = map[entry.exercise];
+      final key = _normalizeExerciseName(entry.exercise);
+      final current = map[key];
       if (current == null || entry.weight > current.weight) {
-        map[entry.exercise] = entry;
+        map[key] = entry;
       }
     }
 
@@ -141,19 +142,20 @@ class WorkoutPage extends StatelessWidget {
                 style: Theme.of(context).textTheme.bodyMedium,
               )
             else
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: prs
-                    .take(8)
-                    .map(
-                      (e) => Chip(
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (var i = 0; i < prs.length && i < 8; i++) ...[
+                      if (i > 0) const SizedBox(width: 8),
+                      Chip(
                         label: Text(
-                          '${e.exercise}: ${e.weight.toStringAsFixed(1)} kg',
+                          '${prs[i].exercise}: ${prs[i].weight.toStringAsFixed(1)} kg',
                         ),
                       ),
-                    )
-                    .toList(),
+                    ],
+                  ],
+                ),
               ),
           ],
         ),
@@ -162,6 +164,12 @@ class WorkoutPage extends StatelessWidget {
   }
 
   Widget _workoutLogSection(BuildContext context, AppState appState) {
+    final groupedEntries = <String, List<WorkoutEntry>>{};
+    for (final entry in appState.workoutEntries.take(80)) {
+      final key = _normalizeExerciseName(entry.exercise);
+      groupedEntries.putIfAbsent(key, () => <WorkoutEntry>[]).add(entry);
+    }
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -176,26 +184,56 @@ class WorkoutPage extends StatelessWidget {
                 style: Theme.of(context).textTheme.bodyMedium,
               )
             else
-              ...appState.workoutEntries.take(50).map((entry) {
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
+              ...groupedEntries.entries.map((group) {
+                final logs = group.value;
+                final latest = logs.first;
+                final pr = logs.reduce((a, b) => a.weight >= b.weight ? a : b);
+
+                return ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  childrenPadding: EdgeInsets.zero,
                   leading: const CircleAvatar(
                     child: Icon(Icons.monitor_weight_rounded),
                   ),
-                  title: Text(entry.exercise),
+                  title: Text(latest.exercise),
                   subtitle: Text(
-                    '${DateFormat('d MMM yyyy').format(entry.date)} · ${entry.sets}x${entry.reps} · ${entry.weight.toStringAsFixed(1)} kg',
+                    '${logs.length} logs · PR ${pr.weight.toStringAsFixed(1)} kg',
                   ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline_rounded),
-                    onPressed: () => appState.removeWorkoutEntry(entry.id),
-                  ),
+                  children: logs.take(12).map((entry) {
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        '${DateFormat('d MMM yyyy').format(entry.date)} · ${entry.sets}x${entry.reps} · ${entry.weight.toStringAsFixed(1)} kg',
+                      ),
+                      subtitle:
+                          (entry.notes == null || entry.notes!.trim().isEmpty)
+                          ? null
+                          : Text(entry.notes!),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete_outline_rounded),
+                        onPressed: () => appState.removeWorkoutEntry(entry.id),
+                      ),
+                    );
+                  }).toList(),
                 );
               }),
           ],
         ),
       ),
     );
+  }
+
+  String _normalizeExerciseName(String value) {
+    return value.trim().toLowerCase();
+  }
+
+  List<String> _exerciseSuggestions(List<WorkoutEntry> entries) {
+    final grouped = <String, String>{};
+    for (final entry in entries) {
+      final normalized = _normalizeExerciseName(entry.exercise);
+      grouped.putIfAbsent(normalized, () => entry.exercise.trim());
+    }
+    return grouped.values.toList()..sort((a, b) => a.compareTo(b));
   }
 
   String _weekday(int day) {
@@ -300,6 +338,9 @@ class WorkoutPage extends StatelessWidget {
     final reps = TextEditingController();
     final weight = TextEditingController();
     final notes = TextEditingController();
+    final exerciseSuggestions = _exerciseSuggestions(
+      context.read<AppState>().workoutEntries,
+    );
     var date = DateTime.now();
 
     await showModalBottomSheet<void>(
@@ -328,13 +369,52 @@ class WorkoutPage extends StatelessWidget {
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 12),
-                      TextFormField(
-                        controller: exercise,
-                        decoration: const InputDecoration(
-                          labelText: 'Exercise name',
-                        ),
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty) ? 'Required' : null,
+                      Autocomplete<String>(
+                        optionsBuilder: (textEditingValue) {
+                          final query = textEditingValue.text
+                              .trim()
+                              .toLowerCase();
+                          if (query.isEmpty) {
+                            return exerciseSuggestions.take(6);
+                          }
+                          return exerciseSuggestions
+                              .where(
+                                (item) => item.toLowerCase().contains(query),
+                              )
+                              .take(6);
+                        },
+                        onSelected: (selection) => exercise.text = selection,
+                        fieldViewBuilder:
+                            (
+                              context,
+                              textEditingController,
+                              focusNode,
+                              onFieldSubmitted,
+                            ) {
+                              if (textEditingController.text != exercise.text) {
+                                textEditingController.value = TextEditingValue(
+                                  text: exercise.text,
+                                  selection: TextSelection.collapsed(
+                                    offset: exercise.text.length,
+                                  ),
+                                );
+                              }
+                              return TextFormField(
+                                controller: textEditingController,
+                                focusNode: focusNode,
+                                decoration: const InputDecoration(
+                                  labelText: 'Exercise name',
+                                  hintText: 'Start typing (e.g. Bench press)',
+                                ),
+                                validator: (v) =>
+                                    (v == null || v.trim().isEmpty)
+                                    ? 'Required'
+                                    : null,
+                                onChanged: (_) {
+                                  exercise.value = textEditingController.value;
+                                },
+                              );
+                            },
                       ),
                       const SizedBox(height: 10),
                       _intField(sets, 'Sets'),
