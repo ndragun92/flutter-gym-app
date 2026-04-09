@@ -529,31 +529,49 @@ class _TodayCompletionCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                _StatusChip(
-                  label: 'Meal logged',
-                  done: mealLogged,
-                  icon: Icons.restaurant_rounded,
-                ),
-                _StatusChip(
-                  label: 'Protein target',
-                  done: proteinGoalReached,
-                  icon: Icons.egg_alt_rounded,
-                ),
-                _StatusChip(
-                  label: 'Calories on track',
-                  done: caloriesOnTrack,
-                  icon: Icons.local_fire_department_rounded,
-                ),
-                _StatusChip(
-                  label: 'Workout logged',
-                  done: workoutLogged,
-                  icon: Icons.fitness_center_rounded,
-                ),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                const gap = 6.0;
+                final itemWidth = (constraints.maxWidth - gap) / 2;
+                return Wrap(
+                  spacing: gap,
+                  runSpacing: gap,
+                  children: [
+                    SizedBox(
+                      width: itemWidth,
+                      child: _StatusChip(
+                        label: 'Meal logged',
+                        done: mealLogged,
+                        icon: Icons.restaurant_rounded,
+                      ),
+                    ),
+                    SizedBox(
+                      width: itemWidth,
+                      child: _StatusChip(
+                        label: 'Protein target',
+                        done: proteinGoalReached,
+                        icon: Icons.egg_alt_rounded,
+                      ),
+                    ),
+                    SizedBox(
+                      width: itemWidth,
+                      child: _StatusChip(
+                        label: 'Calories on track',
+                        done: caloriesOnTrack,
+                        icon: Icons.local_fire_department_rounded,
+                      ),
+                    ),
+                    SizedBox(
+                      width: itemWidth,
+                      child: _StatusChip(
+                        label: 'Workout logged',
+                        done: workoutLogged,
+                        icon: Icons.fitness_center_rounded,
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ],
         ),
@@ -652,7 +670,7 @@ class _StatusChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: MainAxisSize.max,
         children: [
           Icon(
             done ? Icons.check_circle_rounded : icon,
@@ -660,7 +678,14 @@ class _StatusChip extends StatelessWidget {
             color: done ? colorScheme.primary : colorScheme.onSurfaceVariant,
           ),
           const SizedBox(width: 6),
-          Text(label, style: Theme.of(context).textTheme.labelSmall),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelSmall,
+            ),
+          ),
         ],
       ),
     );
