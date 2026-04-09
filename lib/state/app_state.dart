@@ -33,8 +33,9 @@ class AppState extends ChangeNotifier {
   List<WorkoutEntry> workoutEntries = [];
   List<GymSchedule> gymSchedules = [];
 
-  int dailyCalorieGoal = 2200;
-  double dailyProteinGoal = 140;
+  // Personalized defaults for slow cut while preserving muscle.
+  int dailyCalorieGoal = 2500;
+  double dailyProteinGoal = 190;
   int weeklyWorkoutGoal = 4;
 
   Future<void> load() async {
@@ -98,14 +99,25 @@ class AppState extends ChangeNotifier {
         final calories = (parsed['dailyCalorieGoal'] as num?)?.toInt();
         final protein = (parsed['dailyProteinGoal'] as num?)?.toDouble();
         final workouts = (parsed['weeklyWorkoutGoal'] as num?)?.toInt();
-        if (calories != null && calories > 0) {
-          dailyCalorieGoal = calories;
-        }
-        if (protein != null && protein > 0) {
-          dailyProteinGoal = protein;
-        }
-        if (workouts != null && workouts > 0) {
-          weeklyWorkoutGoal = workouts;
+
+        // One-time migration from previous defaults.
+        final shouldMigrateLegacyDefaults =
+            calories == 2200 && protein == 140 && workouts == 4;
+        if (shouldMigrateLegacyDefaults) {
+          dailyCalorieGoal = 2500;
+          dailyProteinGoal = 190;
+          weeklyWorkoutGoal = 4;
+          await _saveGoals();
+        } else {
+          if (calories != null && calories > 0) {
+            dailyCalorieGoal = calories;
+          }
+          if (protein != null && protein > 0) {
+            dailyProteinGoal = protein;
+          }
+          if (workouts != null && workouts > 0) {
+            weeklyWorkoutGoal = workouts;
+          }
         }
       } catch (_) {
         // Keep defaults if persisted data is malformed.
