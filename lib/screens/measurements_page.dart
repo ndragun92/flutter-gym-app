@@ -413,18 +413,25 @@ class _ProgressHighlights extends StatelessWidget {
               style: Theme.of(context).textTheme.titleSmall,
             ),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                _DeltaPill('Weight Δ ${_format(weightDelta)} kg'),
-                if (waistDelta != null)
-                  _DeltaPill('Waist Δ ${_format(waistDelta)} cm'),
-                if (chestDelta != null)
-                  _DeltaPill('Chest Δ ${_format(chestDelta)} cm'),
-                if (hipsDelta != null)
-                  _DeltaPill('Hips Δ ${_format(hipsDelta)} cm'),
-              ],
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _DeltaPill('Weight Δ ${_format(weightDelta)} kg'),
+                  if (waistDelta != null) ...[
+                    const SizedBox(width: 6),
+                    _DeltaPill('Waist Δ ${_format(waistDelta)} cm'),
+                  ],
+                  if (chestDelta != null) ...[
+                    const SizedBox(width: 6),
+                    _DeltaPill('Chest Δ ${_format(chestDelta)} cm'),
+                  ],
+                  if (hipsDelta != null) ...[
+                    const SizedBox(width: 6),
+                    _DeltaPill('Hips Δ ${_format(hipsDelta)} cm'),
+                  ],
+                ],
+              ),
             ),
             const SizedBox(height: 10),
             _TrendRow(
