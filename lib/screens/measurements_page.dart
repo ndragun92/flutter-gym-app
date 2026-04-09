@@ -404,6 +404,8 @@ class _ProgressHighlights extends StatelessWidget {
     final waistDelta = _delta(latest.waist, oldest.waist);
     final chestDelta = _delta(latest.chest, oldest.chest);
     final hipsDelta = _delta(latest.hips, oldest.hips);
+    final bicepsDelta = _delta(latest.biceps, oldest.biceps);
+    final thighDelta = _delta(latest.thigh, oldest.thigh);
 
     final ascendingByDate = [...entries]
       ..sort((a, b) => a.date.compareTo(b.date));
@@ -435,6 +437,14 @@ class _ProgressHighlights extends StatelessWidget {
                   if (hipsDelta != null) ...[
                     const SizedBox(width: 6),
                     _DeltaPill('Hips Δ ${_format(hipsDelta)} cm'),
+                  ],
+                  if (bicepsDelta != null) ...[
+                    const SizedBox(width: 6),
+                    _DeltaPill('Biceps Δ ${_format(bicepsDelta)} cm'),
+                  ],
+                  if (thighDelta != null) ...[
+                    const SizedBox(width: 6),
+                    _DeltaPill('Thigh Δ ${_format(thighDelta)} cm'),
                   ],
                 ],
               ),
@@ -469,6 +479,24 @@ class _ProgressHighlights extends StatelessWidget {
               unit: 'cm',
               values: ascendingByDate
                   .map((e) => e.hips)
+                  .whereType<double>()
+                  .toList(),
+              preferDecrease: true,
+            ),
+            _TrendRow(
+              title: 'Biceps',
+              unit: 'cm',
+              values: ascendingByDate
+                  .map((e) => e.biceps)
+                  .whereType<double>()
+                  .toList(),
+              preferDecrease: false,
+            ),
+            _TrendRow(
+              title: 'Thigh',
+              unit: 'cm',
+              values: ascendingByDate
+                  .map((e) => e.thigh)
                   .whereType<double>()
                   .toList(),
               preferDecrease: true,

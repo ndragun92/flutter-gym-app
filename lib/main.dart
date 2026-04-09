@@ -205,6 +205,11 @@ class _RootShellState extends State<_RootShell> {
   Future<void> _openQuickMeasurementDialog() async {
     final formKey = GlobalKey<FormState>();
     final weight = TextEditingController();
+    final waist = TextEditingController();
+    final chest = TextEditingController();
+    final hips = TextEditingController();
+    final biceps = TextEditingController();
+    final thigh = TextEditingController();
 
     await showModalBottomSheet<void>(
       context: context,
@@ -235,6 +240,52 @@ class _RootShellState extends State<_RootShell> {
                 ),
                 const SizedBox(height: 12),
                 _quickNumberField(controller: weight, label: 'Weight (kg)'),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _quickNumberField(
+                        controller: waist,
+                        label: 'Waist (cm)',
+                        requiredField: false,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _quickNumberField(
+                        controller: chest,
+                        label: 'Chest (cm)',
+                        requiredField: false,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _quickNumberField(
+                        controller: hips,
+                        label: 'Hips (cm)',
+                        requiredField: false,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _quickNumberField(
+                        controller: biceps,
+                        label: 'Biceps (cm)',
+                        requiredField: false,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                _quickNumberField(
+                  controller: thigh,
+                  label: 'Thigh (cm)',
+                  requiredField: false,
+                ),
                 const SizedBox(height: 16),
                 FilledButton(
                   onPressed: () async {
@@ -242,6 +293,11 @@ class _RootShellState extends State<_RootShell> {
                     await context.read<AppState>().addBodyMeasurement(
                       date: DateTime.now(),
                       weight: double.parse(weight.text.trim()),
+                      waist: _parseNullableNumber(waist.text),
+                      chest: _parseNullableNumber(chest.text),
+                      hips: _parseNullableNumber(hips.text),
+                      biceps: _parseNullableNumber(biceps.text),
+                      thigh: _parseNullableNumber(thigh.text),
                     );
                     if (!context.mounted) return;
                     Navigator.pop(context);
@@ -416,17 +472,26 @@ class _RootShellState extends State<_RootShell> {
   Widget _quickNumberField({
     required TextEditingController controller,
     required String label,
+    bool requiredField = true,
   }) {
     return TextFormField(
       controller: controller,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       decoration: InputDecoration(labelText: label),
       validator: (value) {
-        final parsed = double.tryParse((value ?? '').trim());
+        final raw = (value ?? '').trim();
+        if (!requiredField && raw.isEmpty) return null;
+        final parsed = double.tryParse(raw);
         if (parsed == null || parsed < 0) return 'Invalid number';
         return null;
       },
     );
+  }
+
+  double? _parseNullableNumber(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return null;
+    return double.tryParse(trimmed);
   }
 
   Widget _buildDecorativeBackground(ThemeData theme) {
@@ -616,11 +681,13 @@ class _RootShellState extends State<_RootShell> {
                 ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openQuickAddSheet,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Quick add'),
-      ),
+      floatingActionButton: index == 2
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _openQuickAddSheet,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Quick add'),
+            ),
       bottomNavigationBar: _buildBottomNav(theme),
     );
   }
