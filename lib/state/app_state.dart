@@ -11,6 +11,7 @@ import '../models/body_progress_photo.dart';
 import '../models/meal_entry.dart';
 import '../models/user_profile.dart';
 import '../models/workout_entry.dart';
+import '../services/google_drive_backup_service.dart';
 import '../services/notification_service.dart';
 
 class AppState extends ChangeNotifier {
@@ -47,6 +48,18 @@ class AppState extends ChangeNotifier {
   int dailyCalorieGoal = 2500;
   double dailyProteinGoal = 190;
   int weeklyWorkoutGoal = 4;
+
+  final GoogleDriveBackupService _googleDriveBackupService =
+      GoogleDriveBackupService();
+  bool _autoBackupToGoogleDriveEnabled = true;
+  bool _isRestoringInitialState = true;
+
+  bool get isGoogleDriveSignedIn => _googleDriveBackupService.isSignedIn;
+  String? get googleDriveAccountEmail =>
+      _googleDriveBackupService.signedInEmail;
+  DateTime? get lastGoogleDriveBackupAt =>
+      _googleDriveBackupService.lastBackupAt;
+  bool get autoBackupToGoogleDriveEnabled => _autoBackupToGoogleDriveEnabled;
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -150,7 +163,15 @@ class AppState extends ChangeNotifier {
       }
     }
 
+    try {
+      await _googleDriveBackupService.restoreSession();
+    } catch (error, stackTrace) {
+      debugPrint('Failed to restore Google session: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+
     isLoading = false;
+    _isRestoringInitialState = false;
     notifyListeners();
 
     unawaited(_syncAllScheduleNotifications());
@@ -186,6 +207,7 @@ class AppState extends ChangeNotifier {
   Future<void> _saveList(String key, List<Map<String, dynamic>> data) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(key, data.map(jsonEncode).toList());
+    _scheduleAutoBackupIfNeeded();
   }
 
   Future<void> _saveGoals() async {
@@ -198,15 +220,59 @@ class AppState extends ChangeNotifier {
         'weeklyWorkoutGoal': weeklyWorkoutGoal,
       }),
     );
+    _scheduleAutoBackupIfNeeded();
   }
 
   Future<void> _saveUserProfile() async {
     final prefs = await SharedPreferences.getInstance();
     if (userProfile == null) {
       await prefs.remove(_userProfileKey);
+      _scheduleAutoBackupIfNeeded();
       return;
     }
     await prefs.setString(_userProfileKey, userProfile!.toJson());
+    _scheduleAutoBackupIfNeeded();
+  }
+
+  void _scheduleAutoBackupIfNeeded() {
+    if (_isRestoringInitialState || !_autoBackupToGoogleDriveEnabled) return;
+    _googleDriveBackupService.scheduleAutoBackup(exportBackupJson);
+  }
+
+  Future<void> signInWithGoogleDrive() async {
+    await _googleDriveBackupService.signIn();
+    notifyListeners();
+  }
+
+  Future<void> signOutFromGoogleDrive() async {
+    await _googleDriveBackupService.signOut();
+    notifyListeners();
+  }
+
+  Future<void> setAutoBackupToGoogleDriveEnabled(bool enabled) async {
+    if (_autoBackupToGoogleDriveEnabled == enabled) return;
+    _autoBackupToGoogleDriveEnabled = enabled;
+    notifyListeners();
+  }
+
+  Future<void> backupToGoogleDriveNow() async {
+    final backupJson = await exportBackupJson();
+    await _googleDriveBackupService.uploadBackupJson(backupJson);
+    notifyListeners();
+  }
+
+  Future<void> restoreFromGoogleDrive() async {
+    final backupJson = await _googleDriveBackupService.downloadBackupJson();
+    if (backupJson == null) {
+      throw StateError('No Google Drive backup found');
+    }
+    await importBackupJson(backupJson);
+  }
+
+  @override
+  void dispose() {
+    _googleDriveBackupService.dispose();
+    super.dispose();
   }
 
   Future<void> _saveAllState() async {

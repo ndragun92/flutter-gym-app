@@ -28,6 +28,7 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _selectedImagePath;
   bool _initialized = false;
   bool _isImportExportBusy = false;
+  bool _isGoogleDriveBusy = false;
   static const XTypeGroup _jsonTypeGroup = XTypeGroup(
     label: 'JSON',
     extensions: ['json'],
@@ -215,6 +216,109 @@ class _SettingsPageState extends State<SettingsPage> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 16),
+                    const Divider(),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.cloud_sync_rounded,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Google Drive backup',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      appState.isGoogleDriveSignedIn
+                          ? 'Connected as ${appState.googleDriveAccountEmail ?? 'Google account'}'
+                          : 'Sign in to back up and restore your data from Google Drive.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.7),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: _isGoogleDriveBusy
+                              ? null
+                              : (appState.isGoogleDriveSignedIn
+                                    ? _signOutFromGoogleDrive
+                                    : _signInWithGoogleDrive),
+                          icon: _isGoogleDriveBusy
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Icon(
+                                  appState.isGoogleDriveSignedIn
+                                      ? Icons.logout_rounded
+                                      : Icons.login_rounded,
+                                ),
+                          label: Text(
+                            appState.isGoogleDriveSignedIn
+                                ? 'Sign out'
+                                : 'Sign in with Google',
+                          ),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed:
+                              _isGoogleDriveBusy ||
+                                  !appState.isGoogleDriveSignedIn
+                              ? null
+                              : _backupToGoogleDrive,
+                          icon: const Icon(Icons.backup_rounded),
+                          label: const Text('Backup to Google Drive'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed:
+                              _isGoogleDriveBusy ||
+                                  !appState.isGoogleDriveSignedIn
+                              ? null
+                              : _restoreFromGoogleDrive,
+                          icon: const Icon(Icons.restore_rounded),
+                          label: const Text('Restore from Google Drive'),
+                        ),
+                      ],
+                    ),
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      value: appState.autoBackupToGoogleDriveEnabled,
+                      onChanged: !appState.isGoogleDriveSignedIn
+                          ? null
+                          : (enabled) {
+                              appState.setAutoBackupToGoogleDriveEnabled(
+                                enabled,
+                              );
+                            },
+                      title: const Text('Auto-upload changes'),
+                      subtitle: Text(
+                        appState.isGoogleDriveSignedIn
+                            ? 'Automatically uploads after important data changes.'
+                            : 'Sign in with Google to enable auto-upload.',
+                      ),
+                    ),
+                    if (appState.lastGoogleDriveBackupAt != null)
+                      Text(
+                        'Last Google Drive backup: ${DateFormat('d MMM yyyy, HH:mm').format(appState.lastGoogleDriveBackupAt!.toLocal())}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.65),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -482,6 +586,136 @@ class _SettingsPageState extends State<SettingsPage> {
       if (mounted) {
         setState(() {
           _isImportExportBusy = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _signInWithGoogleDrive() async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() {
+      _isGoogleDriveBusy = true;
+    });
+    try {
+      await context.read<AppState>().signInWithGoogleDrive();
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Signed in with Google successfully')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Google sign-in failed: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGoogleDriveBusy = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _signOutFromGoogleDrive() async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() {
+      _isGoogleDriveBusy = true;
+    });
+    try {
+      await context.read<AppState>().signOutFromGoogleDrive();
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Signed out from Google Drive')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Sign out failed: $error')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGoogleDriveBusy = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _backupToGoogleDrive() async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() {
+      _isGoogleDriveBusy = true;
+    });
+    try {
+      await context.read<AppState>().backupToGoogleDriveNow();
+      if (!mounted) return;
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Backup uploaded to Google Drive')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text('Backup failed: $error')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGoogleDriveBusy = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _restoreFromGoogleDrive() async {
+    final shouldRestore =
+        await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Restore from Google Drive?'),
+            content: const Text(
+              'This replaces your current app data with the latest Google Drive backup.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Restore'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!shouldRestore) return;
+    if (!mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    setState(() {
+      _isGoogleDriveBusy = true;
+    });
+    try {
+      final appState = context.read<AppState>();
+      await appState.restoreFromGoogleDrive();
+      if (!mounted) return;
+      setState(() {
+        _syncFormWithProfileFromAppState(appState);
+      });
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Data restored from Google Drive')),
+      );
+    } on FormatException catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Restore failed: ${error.message}')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text('Restore failed: $error')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGoogleDriveBusy = false;
         });
       }
     }
