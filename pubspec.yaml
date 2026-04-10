@@ -1,7 +1,7 @@
 name: pulsenest_tracker
 description: "PulseNest helps you track workouts, meals, and body measurements in one place."
 publish_to: "none"
-version: 0.1.0+8
+version: 0.1.0+10
 
 environment:
   sdk: ^3.11.4
@@ -24,6 +24,12 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/icon.png"  

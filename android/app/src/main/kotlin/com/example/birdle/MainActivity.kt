@@ -1,4 +1,4 @@
-package com.example.birdle
+package com.example.pulsenest_tracker
 
 import io.flutter.embedding.android.FlutterActivity
 

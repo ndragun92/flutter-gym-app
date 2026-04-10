@@ -370,7 +370,7 @@ class _SettingsPageState extends State<SettingsPage> {
     try {
       final json = await appState.exportBackupJson();
       final suggestedName =
-          'birdle_backup_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.json';
+          'pulsenest_backup_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.json';
 
       if (Platform.isAndroid || Platform.isIOS) {
         final tempDir = await getTemporaryDirectory();
@@ -380,8 +380,8 @@ class _SettingsPageState extends State<SettingsPage> {
         await SharePlus.instance.share(
           ShareParams(
             files: [XFile(exportFile.path)],
-            subject: 'Birdle backup',
-            text: 'Birdle backup exported on ${DateTime.now().toLocal()}',
+            subject: 'PulseNest backup - ${DateTime.now().toLocal()}',
+            text: 'PulseNest backup exported on ${DateTime.now().toLocal()}',
           ),
         );
 
