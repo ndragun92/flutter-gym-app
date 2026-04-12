@@ -91,6 +91,15 @@ class AppTheme {
         labelTextStyle: MaterialStateProperty.all(TextStyle(color: text)),
         iconTheme: MaterialStateProperty.all(IconThemeData(color: text)),
       ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.fixed,
+        backgroundColor: const Color(0xFF2F2F33),
+        contentTextStyle: const TextStyle(color: text),
+        actionTextColor: primary,
+        disabledActionTextColor: secondaryText,
+        closeIconColor: text,
+        elevation: 0,
+      ),
     );
   }
 }
