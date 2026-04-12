@@ -59,6 +59,13 @@ class DashboardPage extends StatelessWidget {
       0,
       99,
     );
+    final todaySteps = appState.todaySteps;
+    final todayStepGoal = appState.todayStepGoal;
+    final weeklySteps = appState.weeklySteps;
+    final monthlySteps = appState.monthSteps;
+    final bestDayLast30 = appState.bestDayStepsLast30Days;
+    final stepStreak = appState.currentStepStreak;
+    final hasReachedStepGoal = todaySteps >= todayStepGoal && todayStepGoal > 0;
 
     final calorieRatio = appState.dailyCalorieGoal <= 0
         ? 0.0
@@ -73,8 +80,9 @@ class DashboardPage extends StatelessWidget {
         (((todaysMeals.isNotEmpty ? 1.0 : 0.0) +
                     calorieAdherence +
                     proteinProgress +
-                    (hasWorkoutToday ? 1.0 : 0.0)) /
-                4 *
+                    (hasWorkoutToday ? 1.0 : 0.0) +
+                    (hasReachedStepGoal ? 1.0 : 0.0)) /
+                5 *
                 100)
             .round();
 
@@ -130,6 +138,23 @@ class DashboardPage extends StatelessWidget {
           proteinGoal: appState.dailyProteinGoal,
           workoutGoal: appState.weeklyWorkoutGoal,
           onEditGoals: () => _openGoalsDialog(context, appState),
+        ),
+        const SizedBox(height: 12),
+        _StepOverviewCard(
+          todaysSteps: todaySteps,
+          todaysGoal: todayStepGoal,
+          weeklySteps: weeklySteps,
+          monthlySteps: monthlySteps,
+          bestDayInLast30Days: bestDayLast30,
+          streakDays: stepStreak,
+          canTrackAutomatically:
+              appState.isStepTrackingAvailable &&
+              appState.isStepTrackingPermissionGranted,
+          trackingError: appState.stepTrackingError,
+          onSyncPressed: () => appState.requestStepTrackingPermission(),
+          onSetTodayGoalPressed: () => _openStepGoalDialog(context, appState),
+          onSetDefaultGoalPressed: () =>
+              _openDefaultStepGoalDialog(context, appState),
         ),
         const SizedBox(height: 12),
         _TodayCompletionCard(
@@ -351,6 +376,146 @@ class DashboardPage extends StatelessWidget {
       },
     );
   }
+
+  Future<void> _openStepGoalDialog(BuildContext context, AppState state) async {
+    final formKey = GlobalKey<FormState>();
+    final now = DateTime.now();
+    final controller = TextEditingController(
+      text: state.stepGoalForDate(now).toString(),
+    );
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 8,
+            bottom:
+                math.max(
+                  MediaQuery.of(context).viewInsets.bottom,
+                  MediaQuery.of(context).viewPadding.bottom,
+                ) +
+                16,
+          ),
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Today\'s step goal',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Steps',
+                    helperText: 'Recommended range: 6,000 - 15,000',
+                  ),
+                  validator: (value) {
+                    final parsed = int.tryParse((value ?? '').trim());
+                    if (parsed == null || parsed < 1000 || parsed > 100000) {
+                      return 'Enter a value between 1,000 and 100,000';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () async {
+                    if (!formKey.currentState!.validate()) return;
+                    await state.setDailyStepGoal(
+                      date: now,
+                      goal: int.parse(controller.text.trim()),
+                    );
+                    if (context.mounted) Navigator.pop(context);
+                  },
+                  child: const Text('Save today goal'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _openDefaultStepGoalDialog(
+    BuildContext context,
+    AppState state,
+  ) async {
+    final formKey = GlobalKey<FormState>();
+    final controller = TextEditingController(
+      text: state.defaultDailyStepGoal.toString(),
+    );
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 8,
+            bottom:
+                math.max(
+                  MediaQuery.of(context).viewInsets.bottom,
+                  MediaQuery.of(context).viewPadding.bottom,
+                ) +
+                16,
+          ),
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Default daily step goal',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Default steps per day',
+                  ),
+                  validator: (value) {
+                    final parsed = int.tryParse((value ?? '').trim());
+                    if (parsed == null || parsed < 1000 || parsed > 100000) {
+                      return 'Enter a value between 1,000 and 100,000';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () async {
+                    if (!formKey.currentState!.validate()) return;
+                    await state.updateDefaultStepGoal(
+                      int.parse(controller.text.trim()),
+                    );
+                    if (context.mounted) Navigator.pop(context);
+                  },
+                  child: const Text('Save default goal'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _ProfileSnapshotCard extends StatelessWidget {
@@ -488,6 +653,144 @@ class _GoalProgressCard extends StatelessWidget {
               label: 'Workouts this week',
               value: '$weeklyWorkouts / $workoutGoal sessions',
               progress: workoutProgress,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StepOverviewCard extends StatelessWidget {
+  const _StepOverviewCard({
+    required this.todaysSteps,
+    required this.todaysGoal,
+    required this.weeklySteps,
+    required this.monthlySteps,
+    required this.bestDayInLast30Days,
+    required this.streakDays,
+    required this.canTrackAutomatically,
+    required this.trackingError,
+    required this.onSyncPressed,
+    required this.onSetTodayGoalPressed,
+    required this.onSetDefaultGoalPressed,
+  });
+
+  final int todaysSteps;
+  final int todaysGoal;
+  final int weeklySteps;
+  final int monthlySteps;
+  final int bestDayInLast30Days;
+  final int streakDays;
+  final bool canTrackAutomatically;
+  final String? trackingError;
+  final VoidCallback onSyncPressed;
+  final VoidCallback onSetTodayGoalPressed;
+  final VoidCallback onSetDefaultGoalPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = todaysGoal <= 0
+        ? 0.0
+        : (todaysSteps / todaysGoal).clamp(0.0, 1.0);
+    final remaining = (todaysGoal - todaysSteps).clamp(0, 999999);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text('Steps', style: Theme.of(context).textTheme.titleMedium),
+                const Spacer(),
+                if (!canTrackAutomatically)
+                  TextButton.icon(
+                    onPressed: onSyncPressed,
+                    icon: const Icon(Icons.sync_rounded),
+                    label: const Text('Enable'),
+                  ),
+              ],
+            ),
+            Text(
+              '$todaysSteps / $todaysGoal today',
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 6),
+            LinearProgressIndicator(value: progress),
+            const SizedBox(height: 8),
+            Text(
+              remaining == 0
+                  ? 'Goal reached. Great work!'
+                  : '$remaining steps left to hit your goal',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+              ),
+            ),
+            if ((trackingError ?? '').isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                trackingError!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.error,
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _MetricChip(
+                    'Weekly',
+                    NumberFormat.compact().format(weeklySteps),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _MetricChip(
+                    'Monthly',
+                    NumberFormat.compact().format(monthlySteps),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _MetricChip(
+                    'Best 30d',
+                    NumberFormat.compact().format(bestDayInLast30Days),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              streakDays <= 0
+                  ? 'No active streak yet'
+                  : '$streakDays-day streak above goal',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withOpacity(0.75),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: onSetTodayGoalPressed,
+                  icon: const Icon(Icons.today_rounded),
+                  label: const Text('Set today goal'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: onSetDefaultGoalPressed,
+                  icon: const Icon(Icons.flag_rounded),
+                  label: const Text('Set default goal'),
+                ),
+              ],
             ),
           ],
         ),

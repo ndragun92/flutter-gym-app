@@ -9,9 +9,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/body_measurement_entry.dart';
 import '../models/body_progress_photo.dart';
 import '../models/meal_entry.dart';
+import '../models/step_day_entry.dart';
 import '../models/user_profile.dart';
 import '../models/workout_entry.dart';
 import '../services/notification_service.dart';
+import '../services/step_counter_service.dart';
 
 class AppState extends ChangeNotifier {
   AppState() {
@@ -26,9 +28,12 @@ class AppState extends ChangeNotifier {
   static const _bodyProgressGalleryKey = 'body_progress_gallery';
   static const _workoutLogsKey = 'workout_logs';
   static const _gymScheduleKey = 'gym_schedule';
+  static const _stepDayLogsKey = 'step_day_logs';
+  static const _stepGoalsByDayKey = 'step_goals_by_day';
+  static const _stepSensorStateKey = 'step_sensor_state';
   static const _goalsKey = 'goals';
   static const _userProfileKey = 'user_profile';
-  static const _backupVersion = 1;
+  static const _backupVersion = 2;
   static const _profileImageAssetKey = 'profile_image';
 
   bool isLoading = true;
@@ -41,12 +46,25 @@ class AppState extends ChangeNotifier {
   List<BodyProgressPhoto> bodyProgressPhotos = [];
   List<WorkoutEntry> workoutEntries = [];
   List<GymSchedule> gymSchedules = [];
+  List<StepDayEntry> stepDayEntries = [];
   UserProfile? userProfile;
 
   // Personalized defaults for slow cut while preserving muscle.
   int dailyCalorieGoal = 2500;
   double dailyProteinGoal = 190;
   int weeklyWorkoutGoal = 4;
+  int defaultDailyStepGoal = 10000;
+
+  bool isStepTrackingAvailable = true;
+  bool isStepTrackingPermissionGranted = false;
+  String? stepTrackingError;
+
+  final StepCounterService _stepCounterService = StepCounterService.instance;
+  StreamSubscription<StepSensorSample>? _stepCounterSubscription;
+  final Map<String, int> _stepGoalsByDay = <String, int>{};
+  final Map<String, int> _stepBaselineByDay = <String, int>{};
+  int? _lastRawStepCount;
+  DateTime? _lastRawStepAt;
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -94,6 +112,60 @@ class AppState extends ChangeNotifier {
       (e) => WorkoutEntry.fromMap(e),
     )..sort((a, b) => b.date.compareTo(a.date));
 
+    stepDayEntries = _decodeList(
+      prefs.getStringList(_stepDayLogsKey),
+      (e) => StepDayEntry.fromMap(e),
+    )..sort((a, b) => b.date.compareTo(a.date));
+
+    final stepGoalsRaw = prefs.getString(_stepGoalsByDayKey);
+    if (stepGoalsRaw != null && stepGoalsRaw.isNotEmpty) {
+      try {
+        final parsed = jsonDecode(stepGoalsRaw) as Map<String, dynamic>;
+        _stepGoalsByDay
+          ..clear()
+          ..addAll(
+            parsed.map(
+              (key, value) => MapEntry(
+                key,
+                ((value as num?)?.toInt() ?? 0).clamp(1000, 100000),
+              ),
+            )..removeWhere((_, value) => value <= 0),
+          );
+      } catch (_) {
+        _stepGoalsByDay.clear();
+      }
+    }
+
+    final stepSensorRaw = prefs.getString(_stepSensorStateKey);
+    if (stepSensorRaw != null && stepSensorRaw.isNotEmpty) {
+      try {
+        final parsed = jsonDecode(stepSensorRaw) as Map<String, dynamic>;
+        _lastRawStepCount = (parsed['lastRawStepCount'] as num?)?.toInt();
+        final rawLastRawStepAt = parsed['lastRawStepAt'] as String?;
+        _lastRawStepAt = rawLastRawStepAt == null
+            ? null
+            : DateTime.tryParse(rawLastRawStepAt);
+
+        final rawBaseline = parsed['dayBaseline'];
+        if (rawBaseline is Map) {
+          _stepBaselineByDay
+            ..clear()
+            ..addAll(
+              rawBaseline.map(
+                (key, value) => MapEntry(
+                  key.toString(),
+                  ((value as num?)?.toInt() ?? 0).clamp(0, 9999999),
+                ),
+              ),
+            );
+        }
+      } catch (_) {
+        _lastRawStepCount = null;
+        _lastRawStepAt = null;
+        _stepBaselineByDay.clear();
+      }
+    }
+
     final profileRaw = prefs.getString(_userProfileKey);
     if (profileRaw != null && profileRaw.isNotEmpty) {
       try {
@@ -125,6 +197,7 @@ class AppState extends ChangeNotifier {
         final calories = (parsed['dailyCalorieGoal'] as num?)?.toInt();
         final protein = (parsed['dailyProteinGoal'] as num?)?.toDouble();
         final workouts = (parsed['weeklyWorkoutGoal'] as num?)?.toInt();
+        final defaultSteps = (parsed['defaultDailyStepGoal'] as num?)?.toInt();
 
         // One-time migration from previous defaults.
         final shouldMigrateLegacyDefaults =
@@ -144,6 +217,9 @@ class AppState extends ChangeNotifier {
           if (workouts != null && workouts > 0) {
             weeklyWorkoutGoal = workouts;
           }
+          if (defaultSteps != null && defaultSteps > 0) {
+            defaultDailyStepGoal = defaultSteps.clamp(1000, 100000);
+          }
         }
       } catch (_) {
         // Keep defaults if persisted data is malformed.
@@ -154,6 +230,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
 
     unawaited(_syncAllScheduleNotifications());
+    unawaited(initializeStepTracking());
   }
 
   Future<void> _syncAllScheduleNotifications() async {
@@ -196,6 +273,24 @@ class AppState extends ChangeNotifier {
         'dailyCalorieGoal': dailyCalorieGoal,
         'dailyProteinGoal': dailyProteinGoal,
         'weeklyWorkoutGoal': weeklyWorkoutGoal,
+        'defaultDailyStepGoal': defaultDailyStepGoal,
+      }),
+    );
+  }
+
+  Future<void> _saveStepGoalsByDay() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_stepGoalsByDayKey, jsonEncode(_stepGoalsByDay));
+  }
+
+  Future<void> _saveStepSensorState() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _stepSensorStateKey,
+      jsonEncode({
+        'lastRawStepCount': _lastRawStepCount,
+        'lastRawStepAt': _lastRawStepAt?.toIso8601String(),
+        'dayBaseline': _stepBaselineByDay,
       }),
     );
   }
@@ -233,8 +328,14 @@ class AppState extends ChangeNotifier {
       _gymScheduleKey,
       gymSchedules.map((e) => e.toMap()).toList(),
     );
+    await _saveList(
+      _stepDayLogsKey,
+      stepDayEntries.map((e) => e.toMap()).toList(),
+    );
     await _saveUserProfile();
     await _saveGoals();
+    await _saveStepGoalsByDay();
+    await _saveStepSensorState();
   }
 
   Set<String> _collectReferencedImagePaths() {
@@ -358,11 +459,19 @@ class AppState extends ChangeNotifier {
         'bodyProgressPhotos': bodyProgressPhotos.map((e) => e.toMap()).toList(),
         'workoutEntries': workoutEntries.map((e) => e.toMap()).toList(),
         'gymSchedules': gymSchedules.map((e) => e.toMap()).toList(),
+        'stepDayEntries': stepDayEntries.map((e) => e.toMap()).toList(),
+        'stepGoalsByDay': _stepGoalsByDay,
+        'stepSensorState': {
+          'lastRawStepCount': _lastRawStepCount,
+          'lastRawStepAt': _lastRawStepAt?.toIso8601String(),
+          'dayBaseline': _stepBaselineByDay,
+        },
         'userProfile': userProfile?.toMap(),
         'goals': {
           'dailyCalorieGoal': dailyCalorieGoal,
           'dailyProteinGoal': dailyProteinGoal,
           'weeklyWorkoutGoal': weeklyWorkoutGoal,
+          'defaultDailyStepGoal': defaultDailyStepGoal,
         },
       },
       'assets': assets,
@@ -377,7 +486,7 @@ class AppState extends ChangeNotifier {
 
     final backup = Map<String, dynamic>.from(decoded);
     final version = (backup['version'] as num?)?.toInt();
-    if (version != _backupVersion) {
+    if (version == null || version < 1 || version > _backupVersion) {
       throw FormatException('Unsupported backup version: $version');
     }
 
@@ -485,6 +594,51 @@ class AppState extends ChangeNotifier {
           ).map(WorkoutEntry.fromMap).toList()
           ..sort((a, b) => b.date.compareTo(a.date));
 
+    final importedStepDayEntries =
+        _parseBackupList(
+            payload['stepDayEntries'],
+            'stepDayEntries',
+          ).map(StepDayEntry.fromMap).toList()
+          ..sort((a, b) => b.date.compareTo(a.date));
+
+    final importedStepGoalsByDay = <String, int>{};
+    final rawStepGoalsByDay = payload['stepGoalsByDay'];
+    if (rawStepGoalsByDay is Map) {
+      importedStepGoalsByDay.addAll(
+        rawStepGoalsByDay.map(
+          (key, value) => MapEntry(
+            key.toString(),
+            ((value as num?)?.toInt() ?? 0).clamp(1000, 100000),
+          ),
+        )..removeWhere((_, value) => value <= 0),
+      );
+    }
+
+    int? importedLastRawStepCount;
+    DateTime? importedLastRawStepAt;
+    final importedStepBaselineByDay = <String, int>{};
+    final rawStepSensorState = payload['stepSensorState'];
+    if (rawStepSensorState is Map) {
+      final map = Map<String, dynamic>.from(rawStepSensorState);
+      importedLastRawStepCount = (map['lastRawStepCount'] as num?)?.toInt();
+      final rawDate = map['lastRawStepAt'] as String?;
+      importedLastRawStepAt = rawDate == null
+          ? null
+          : DateTime.tryParse(rawDate);
+
+      final rawBaseline = map['dayBaseline'];
+      if (rawBaseline is Map) {
+        importedStepBaselineByDay.addAll(
+          rawBaseline.map(
+            (key, value) => MapEntry(
+              key.toString(),
+              ((value as num?)?.toInt() ?? 0).clamp(0, 9999999),
+            ),
+          ),
+        );
+      }
+    }
+
     final importedGymSchedules =
         _parseBackupList(
           payload['gymSchedules'],
@@ -519,6 +673,7 @@ class AppState extends ChangeNotifier {
     dailyCalorieGoal = 2500;
     dailyProteinGoal = 190;
     weeklyWorkoutGoal = 4;
+    defaultDailyStepGoal = 10000;
 
     final rawGoals = payload['goals'];
     if (rawGoals != null) {
@@ -529,6 +684,7 @@ class AppState extends ChangeNotifier {
       final calories = (goals['dailyCalorieGoal'] as num?)?.toInt();
       final protein = (goals['dailyProteinGoal'] as num?)?.toDouble();
       final workouts = (goals['weeklyWorkoutGoal'] as num?)?.toInt();
+      final defaultSteps = (goals['defaultDailyStepGoal'] as num?)?.toInt();
       if (calories != null && calories > 0) {
         dailyCalorieGoal = calories;
       }
@@ -537,6 +693,9 @@ class AppState extends ChangeNotifier {
       }
       if (workouts != null && workouts > 0) {
         weeklyWorkoutGoal = workouts;
+      }
+      if (defaultSteps != null && defaultSteps > 0) {
+        defaultDailyStepGoal = defaultSteps.clamp(1000, 100000);
       }
     }
 
@@ -548,6 +707,15 @@ class AppState extends ChangeNotifier {
     bodyProgressPhotos = importedBodyProgressPhotos;
     workoutEntries = importedWorkoutEntries;
     gymSchedules = importedGymSchedules;
+    stepDayEntries = importedStepDayEntries;
+    _stepGoalsByDay
+      ..clear()
+      ..addAll(importedStepGoalsByDay);
+    _lastRawStepCount = importedLastRawStepCount;
+    _lastRawStepAt = importedLastRawStepAt;
+    _stepBaselineByDay
+      ..clear()
+      ..addAll(importedStepBaselineByDay);
     userProfile = importedUserProfile;
     _recalculateMealPlanTotals();
 
@@ -562,6 +730,7 @@ class AppState extends ChangeNotifier {
 
     notifyListeners();
     unawaited(_syncAllScheduleNotifications());
+    unawaited(initializeStepTracking());
   }
 
   List<T> _decodeList<T>(
@@ -577,6 +746,193 @@ class AppState extends ChangeNotifier {
   int _toMinutes(int hour, int minute) => hour * 60 + minute;
 
   String _id() => DateTime.now().microsecondsSinceEpoch.toString();
+
+  String _dayKey(DateTime value) {
+    final local = value.toLocal();
+    return '${local.year.toString().padLeft(4, '0')}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
+  }
+
+  DateTime _dayStart(DateTime value) {
+    final local = value.toLocal();
+    return DateTime(local.year, local.month, local.day);
+  }
+
+  int _stepsForDayKey(String dayKey) {
+    for (final entry in stepDayEntries) {
+      if (_dayKey(entry.date) == dayKey) {
+        return entry.steps;
+      }
+    }
+    return 0;
+  }
+
+  Future<void> _saveStepEntries() async {
+    await _saveList(
+      _stepDayLogsKey,
+      stepDayEntries.map((e) => e.toMap()).toList(),
+    );
+  }
+
+  void _upsertStepEntry(DateTime date, int steps, {bool notify = true}) {
+    final targetDay = _dayStart(date);
+    var replaced = false;
+    stepDayEntries = stepDayEntries.map((entry) {
+      final sameDay = _dayStart(entry.date) == targetDay;
+      if (!sameDay) return entry;
+      replaced = true;
+      return entry.copyWith(
+        date: targetDay,
+        steps: steps,
+        updatedAt: DateTime.now(),
+      );
+    }).toList();
+
+    if (!replaced) {
+      stepDayEntries.insert(
+        0,
+        StepDayEntry(date: targetDay, steps: steps, updatedAt: DateTime.now()),
+      );
+    }
+
+    stepDayEntries.sort((a, b) => b.date.compareTo(a.date));
+    if (notify) {
+      notifyListeners();
+    }
+  }
+
+  void _handleStepSample(StepSensorSample sample) {
+    final dayKey = _dayKey(sample.timestamp);
+    final existingSteps = _stepsForDayKey(dayKey);
+    final baseline =
+        _stepBaselineByDay[dayKey] ?? (sample.rawSteps - existingSteps);
+    _stepBaselineByDay[dayKey] = baseline < 0 ? 0 : baseline;
+
+    final calculated =
+        sample.rawSteps - (_stepBaselineByDay[dayKey] ?? sample.rawSteps);
+    final sanitized = calculated < 0 ? 0 : calculated;
+    if (sanitized > existingSteps) {
+      _upsertStepEntry(sample.timestamp, sanitized, notify: false);
+      unawaited(_saveStepEntries());
+    }
+
+    _lastRawStepCount = sample.rawSteps;
+    _lastRawStepAt = sample.timestamp;
+    stepTrackingError = null;
+    unawaited(_saveStepSensorState());
+    notifyListeners();
+  }
+
+  Future<void> initializeStepTracking() async {
+    isStepTrackingAvailable = _stepCounterService.isSupported;
+    if (!isStepTrackingAvailable) {
+      stepTrackingError = 'Step counter is not supported on this platform.';
+      notifyListeners();
+      return;
+    }
+
+    final granted = await _stepCounterService.ensurePermission(
+      requestIfNeeded: false,
+    );
+    isStepTrackingPermissionGranted = granted;
+
+    if (!granted) {
+      stepTrackingError =
+          'Allow activity recognition to track your steps automatically.';
+      notifyListeners();
+      return;
+    }
+
+    await _stepCounterSubscription?.cancel();
+    _stepCounterSubscription = _stepCounterService.getStepCountStream().listen(
+      _handleStepSample,
+      onError: (Object error, StackTrace stackTrace) {
+        stepTrackingError = error.toString();
+        notifyListeners();
+      },
+      cancelOnError: false,
+    );
+    stepTrackingError = null;
+    notifyListeners();
+  }
+
+  Future<void> requestStepTrackingPermission() async {
+    if (!_stepCounterService.isSupported) {
+      isStepTrackingAvailable = false;
+      stepTrackingError = 'Step counter is not supported on this platform.';
+      notifyListeners();
+      return;
+    }
+
+    final granted = await _stepCounterService.ensurePermission(
+      requestIfNeeded: true,
+    );
+    isStepTrackingPermissionGranted = granted;
+    if (!granted) {
+      stepTrackingError =
+          'Permission denied. Open system settings to enable activity recognition.';
+      notifyListeners();
+      return;
+    }
+
+    await initializeStepTracking();
+  }
+
+  Future<void> setDailyStepGoal({
+    required DateTime date,
+    required int goal,
+  }) async {
+    final key = _dayKey(date);
+    _stepGoalsByDay[key] = goal.clamp(1000, 100000);
+    await _saveStepGoalsByDay();
+    notifyListeners();
+  }
+
+  Future<void> clearDailyStepGoal(DateTime date) async {
+    _stepGoalsByDay.remove(_dayKey(date));
+    await _saveStepGoalsByDay();
+    notifyListeners();
+  }
+
+  Future<void> updateDefaultStepGoal(int goal) async {
+    defaultDailyStepGoal = goal.clamp(1000, 100000);
+    await _saveGoals();
+    notifyListeners();
+  }
+
+  int stepGoalForDate(DateTime date) {
+    return _stepGoalsByDay[_dayKey(date)] ?? defaultDailyStepGoal;
+  }
+
+  int stepsForDate(DateTime date) {
+    return _stepsForDayKey(_dayKey(date));
+  }
+
+  int totalStepsInRange({required DateTime start, required DateTime end}) {
+    final normalizedStart = _dayStart(start);
+    final normalizedEnd = _dayStart(end);
+    var total = 0;
+    for (final entry in stepDayEntries) {
+      final day = _dayStart(entry.date);
+      if (day.isBefore(normalizedStart) || day.isAfter(normalizedEnd)) {
+        continue;
+      }
+      total += entry.steps;
+    }
+    return total;
+  }
+
+  int get currentStepStreak {
+    var streak = 0;
+    var cursor = _dayStart(DateTime.now());
+    while (true) {
+      final steps = stepsForDate(cursor);
+      final goal = stepGoalForDate(cursor);
+      if (steps < goal) break;
+      streak += 1;
+      cursor = cursor.subtract(const Duration(days: 1));
+    }
+    return streak;
+  }
 
   Future<void> addMealEntry({
     required String name,
@@ -1151,6 +1507,40 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  int get todaySteps => stepsForDate(DateTime.now());
+
+  int get todayStepGoal => stepGoalForDate(DateTime.now());
+
+  int get weeklySteps {
+    final now = DateTime.now();
+    final weekStart = _dayStart(now).subtract(Duration(days: now.weekday - 1));
+    final weekEnd = weekStart.add(const Duration(days: 6));
+    return totalStepsInRange(start: weekStart, end: weekEnd);
+  }
+
+  int get monthSteps {
+    final now = DateTime.now();
+    final monthStart = DateTime(now.year, now.month, 1);
+    final monthEnd = DateTime(now.year, now.month + 1, 0);
+    return totalStepsInRange(start: monthStart, end: monthEnd);
+  }
+
+  int get bestDayStepsLast30Days {
+    final now = _dayStart(DateTime.now());
+    final start = now.subtract(const Duration(days: 29));
+    var best = 0;
+    for (final entry in stepDayEntries) {
+      final day = _dayStart(entry.date);
+      if (day.isBefore(start) || day.isAfter(now)) {
+        continue;
+      }
+      if (entry.steps > best) {
+        best = entry.steps;
+      }
+    }
+    return best;
+  }
+
   int? get profileAge {
     final profile = userProfile;
     if (profile == null) return null;
@@ -1256,6 +1646,12 @@ class AppState extends ChangeNotifier {
     weeklyWorkoutGoal = workouts;
     await _saveGoals();
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _stepCounterSubscription?.cancel();
+    super.dispose();
   }
 }
 

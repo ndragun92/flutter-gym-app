@@ -32,6 +32,8 @@
 	<string>Allow photo library access to select meal item photos.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Allow saving photos used for meal item tracking.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>Allow motion access to automatically track your daily steps.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
