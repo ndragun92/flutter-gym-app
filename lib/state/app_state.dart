@@ -996,6 +996,451 @@ class AppState extends ChangeNotifier {
     return streak;
   }
 
+  int get totalXp {
+    final baseXp = _baseXpFromHabits();
+    final achievementBonus = gameAchievements
+        .where((achievement) => achievement.unlocked)
+        .fold<int>(0, (sum, achievement) => sum + achievement.rewardXp);
+    return baseXp + achievementBonus;
+  }
+
+  int get currentLevel {
+    var level = 1;
+    while (totalXp >= _xpRequiredForLevel(level + 1)) {
+      level += 1;
+    }
+    return level;
+  }
+
+  int get xpIntoCurrentLevel => totalXp - _xpRequiredForLevel(currentLevel);
+
+  int get xpNeededForCurrentLevel {
+    return _xpRequiredForLevel(currentLevel + 1) -
+        _xpRequiredForLevel(currentLevel);
+  }
+
+  int get xpToNextLevel {
+    return _xpRequiredForLevel(currentLevel + 1) - totalXp;
+  }
+
+  double get levelProgress {
+    final needed = xpNeededForCurrentLevel;
+    if (needed <= 0) return 0;
+    return (xpIntoCurrentLevel / needed).clamp(0.0, 1.0);
+  }
+
+  List<GameAchievement> get gameAchievements {
+    final mealDays = _uniqueMealDayCount;
+    final workoutCount = workoutEntries.length;
+    final workoutVolume = _totalLiftedKg;
+    final workoutWeeksWithThreePlus = _weeksWithAtLeastNWorkouts(3);
+    final stepGoalDays = _stepGoalReachedDaysCount;
+    final proteinGoalDays = _proteinGoalReachedDaysCount;
+    final calorieTrackDays = _calorieTargetDaysCount;
+    final workoutWeeks = _weeklyWorkoutGoalHitCount;
+    final perfectDays = _perfectHabitDaysCount;
+    final bodyChecks = bodyMeasurements.length;
+
+    return [
+      GameAchievement(
+        id: 'first_meal',
+        title: 'First Fuel',
+        description: 'Log your first meal.',
+        rewardXp: 30,
+        current: mealEntries.length,
+        target: 1,
+      ),
+      GameAchievement(
+        id: 'meal_consistency',
+        title: 'Meal Consistency',
+        description: 'Log meals on 21 different days.',
+        rewardXp: 140,
+        current: mealDays,
+        target: 21,
+      ),
+      GameAchievement(
+        id: 'workout_rookie',
+        title: 'Workout Rookie',
+        description: 'Complete 10 workout sessions.',
+        rewardXp: 110,
+        current: workoutCount,
+        target: 10,
+      ),
+      GameAchievement(
+        id: 'step_crusher',
+        title: 'Step Crusher',
+        description: 'Hit your daily step goal on 14 days.',
+        rewardXp: 130,
+        current: stepGoalDays,
+        target: 14,
+      ),
+      GameAchievement(
+        id: 'protein_focus',
+        title: 'Protein Focus',
+        description: 'Reach your protein target on 10 days.',
+        rewardXp: 110,
+        current: proteinGoalDays,
+        target: 10,
+      ),
+      GameAchievement(
+        id: 'calorie_control',
+        title: 'Calorie Control',
+        description: 'Stay within calories on 10 logged days.',
+        rewardXp: 100,
+        current: calorieTrackDays,
+        target: 10,
+      ),
+      GameAchievement(
+        id: 'weekly_wins',
+        title: 'Weekly Wins',
+        description: 'Hit your weekly workout goal 4 times.',
+        rewardXp: 170,
+        current: workoutWeeks,
+        target: 4,
+      ),
+      GameAchievement(
+        id: 'iron_volume',
+        title: 'Iron Volume',
+        description: 'Accumulate 20,000 kg of total lifted volume.',
+        rewardXp: 220,
+        current: workoutVolume,
+        target: 20000,
+      ),
+      GameAchievement(
+        id: 'consistent_lifter',
+        title: 'Consistent Lifter',
+        description: 'Complete 3+ workouts in a week 8 times.',
+        rewardXp: 200,
+        current: workoutWeeksWithThreePlus,
+        target: 8,
+      ),
+      GameAchievement(
+        id: 'perfect_days',
+        title: 'Perfect Days',
+        description: 'Complete 7 perfect habit days.',
+        rewardXp: 220,
+        current: perfectDays,
+        target: 7,
+      ),
+      GameAchievement(
+        id: 'body_tracker',
+        title: 'Body Tracker',
+        description: 'Add 6 body check-ins.',
+        rewardXp: 120,
+        current: bodyChecks,
+        target: 6,
+      ),
+      GameAchievement(
+        id: 'streak_keeper',
+        title: 'Streak Keeper',
+        description: 'Keep a 7-day step streak.',
+        rewardXp: 160,
+        current: currentStepStreak,
+        target: 7,
+      ),
+    ];
+  }
+
+  List<GameQuest> get todayQuests {
+    final today = DateTime.now();
+    final dayKey = _dayKey(today);
+    final calories = _dayCalories(dayKey);
+    final protein = _dayProtein(dayKey);
+    final mealsToday = _mealCountForDay(dayKey);
+    final workoutsToday = _workoutCountForDay(dayKey);
+    final workoutVolumeToday = _workoutVolumeForDay(dayKey);
+    final weeklyWorkoutCount = _currentWeekWorkoutCount;
+    final todayStepsCount = stepsForDate(today);
+    final todayGoal = stepGoalForDate(today);
+
+    return [
+      GameQuest(
+        id: 'quest_log_meal',
+        title: 'Log a meal',
+        description: 'Fuel your day with at least one entry.',
+        rewardXp: 20,
+        current: mealsToday,
+        target: 1,
+      ),
+      GameQuest(
+        id: 'quest_steps',
+        title: 'Reach step goal',
+        description: 'Complete today\'s step target.',
+        rewardXp: 35,
+        current: todayStepsCount,
+        target: todayGoal,
+      ),
+      GameQuest(
+        id: 'quest_workout',
+        title: 'Train today',
+        description: 'Log at least one workout session.',
+        rewardXp: 45,
+        current: workoutsToday,
+        target: 1,
+      ),
+      GameQuest(
+        id: 'quest_strength_volume',
+        title: 'Strength volume',
+        description: 'Reach 3,000 kg total lifted volume today.',
+        rewardXp: 50,
+        current: workoutVolumeToday,
+        target: 3000,
+      ),
+      GameQuest(
+        id: 'quest_weekly_training_pace',
+        title: 'Weekly training pace',
+        description: 'Reach 3 workouts this week.',
+        rewardXp: 40,
+        current: weeklyWorkoutCount,
+        target: 3,
+      ),
+      GameQuest(
+        id: 'quest_protein',
+        title: 'Hit protein target',
+        description: 'Reach your daily protein goal.',
+        rewardXp: 35,
+        current: protein.round(),
+        target: dailyProteinGoal.round(),
+      ),
+      GameQuest(
+        id: 'quest_calories',
+        title: 'Stay within calories',
+        description: 'Finish the day at or below calorie goal.',
+        rewardXp: 25,
+        current: (mealsToday > 0 && calories <= dailyCalorieGoal) ? 1 : 0,
+        target: 1,
+      ),
+    ];
+  }
+
+  int _xpRequiredForLevel(int level) {
+    if (level <= 1) return 0;
+    var total = 0;
+    for (var current = 1; current < level; current++) {
+      total += 150 + ((current - 1) * 50);
+    }
+    return total;
+  }
+
+  int _baseXpFromHabits() {
+    final mealLogXp = mealEntries.length * 12;
+    final mealDayXp = _uniqueMealDayCount * 8;
+    final workoutXp = workoutEntries.length * 35;
+    final workoutVolumeXp = (_totalLiftedKg ~/ 500).clamp(0, 400);
+    final stepDayXp = _stepGoalReachedDaysCount * 25;
+    final proteinXp = _proteinGoalReachedDaysCount * 20;
+    final calorieXp = _calorieTargetDaysCount * 12;
+    final bodyMeasurementXp = bodyMeasurements.length * 28;
+    final photoXp = bodyProgressPhotos.length * 16;
+    final weeklyGoalXp = _weeklyWorkoutGoalHitCount * 60;
+    final streakXp = (currentStepStreak * 10).clamp(0, 200);
+    final perfectDaysXp = _perfectHabitDaysCount * 45;
+    final profileXp = userProfile == null ? 0 : 80;
+
+    return mealLogXp +
+        mealDayXp +
+        workoutXp +
+        workoutVolumeXp +
+        stepDayXp +
+        proteinXp +
+        calorieXp +
+        bodyMeasurementXp +
+        photoXp +
+        weeklyGoalXp +
+        streakXp +
+        perfectDaysXp +
+        profileXp;
+  }
+
+  int get _uniqueMealDayCount {
+    final days = <String>{};
+    for (final meal in mealEntries) {
+      days.add(_dayKey(meal.ateAt));
+    }
+    return days.length;
+  }
+
+  int get _stepGoalReachedDaysCount {
+    var count = 0;
+    for (final entry in stepDayEntries) {
+      final goal = stepGoalForDate(entry.date);
+      if (goal > 0 && entry.steps >= goal) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
+  int get _proteinGoalReachedDaysCount {
+    final allDayKeys = _allTrackedDayKeys();
+    var count = 0;
+    for (final key in allDayKeys) {
+      if (_dayProtein(key) >= dailyProteinGoal) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
+  int get _calorieTargetDaysCount {
+    final mealDayKeys = <String>{};
+    for (final meal in mealEntries) {
+      mealDayKeys.add(_dayKey(meal.ateAt));
+    }
+
+    var count = 0;
+    for (final key in mealDayKeys) {
+      if (_dayCalories(key) <= dailyCalorieGoal) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
+  int get _weeklyWorkoutGoalHitCount {
+    if (weeklyWorkoutGoal <= 0) return 0;
+    final workoutsByWeek = <String, int>{};
+    for (final workout in workoutEntries) {
+      final day = _dayStart(workout.date);
+      final weekStart = day.subtract(Duration(days: day.weekday - 1));
+      final weekKey = _dayKey(weekStart);
+      workoutsByWeek[weekKey] = (workoutsByWeek[weekKey] ?? 0) + 1;
+    }
+
+    var count = 0;
+    for (final workouts in workoutsByWeek.values) {
+      if (workouts >= weeklyWorkoutGoal) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
+  int get _perfectHabitDaysCount {
+    final allDayKeys = _allTrackedDayKeys();
+    var count = 0;
+    for (final key in allDayKeys) {
+      final hasMeal = _mealCountForDay(key) > 0;
+      final proteinReached = _dayProtein(key) >= dailyProteinGoal;
+      final caloriesOnTrack = hasMeal && _dayCalories(key) <= dailyCalorieGoal;
+      final trained = _workoutCountForDay(key) > 0;
+      final day = DateTime.parse('${key}T00:00:00');
+      final stepsReached = stepsForDate(day) >= stepGoalForDate(day);
+
+      if (hasMeal &&
+          proteinReached &&
+          caloriesOnTrack &&
+          trained &&
+          stepsReached) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
+  Set<String> _allTrackedDayKeys() {
+    final keys = <String>{};
+    for (final meal in mealEntries) {
+      keys.add(_dayKey(meal.ateAt));
+    }
+    for (final workout in workoutEntries) {
+      keys.add(_dayKey(workout.date));
+    }
+    for (final step in stepDayEntries) {
+      keys.add(_dayKey(step.date));
+    }
+    return keys;
+  }
+
+  int _mealCountForDay(String dayKey) {
+    var count = 0;
+    for (final meal in mealEntries) {
+      if (_dayKey(meal.ateAt) == dayKey) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
+  int _workoutCountForDay(String dayKey) {
+    var count = 0;
+    for (final workout in workoutEntries) {
+      if (_dayKey(workout.date) == dayKey) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
+  int _workoutVolumeForDay(String dayKey) {
+    var total = 0.0;
+    for (final workout in workoutEntries) {
+      if (_dayKey(workout.date) != dayKey) continue;
+      total += workout.weight * workout.sets * workout.reps;
+    }
+    return total.round();
+  }
+
+  int get _totalLiftedKg {
+    var total = 0.0;
+    for (final workout in workoutEntries) {
+      total += workout.weight * workout.sets * workout.reps;
+    }
+    return total.round();
+  }
+
+  int _weeksWithAtLeastNWorkouts(int minWorkouts) {
+    if (minWorkouts <= 0) return 0;
+    final workoutsByWeek = <String, int>{};
+    for (final workout in workoutEntries) {
+      final day = _dayStart(workout.date);
+      final weekStart = day.subtract(Duration(days: day.weekday - 1));
+      final weekKey = _dayKey(weekStart);
+      workoutsByWeek[weekKey] = (workoutsByWeek[weekKey] ?? 0) + 1;
+    }
+
+    var count = 0;
+    for (final workouts in workoutsByWeek.values) {
+      if (workouts >= minWorkouts) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
+  int get _currentWeekWorkoutCount {
+    final now = DateTime.now();
+    final weekStart = _dayStart(now).subtract(Duration(days: now.weekday - 1));
+    final weekEnd = weekStart.add(const Duration(days: 6));
+    var count = 0;
+    for (final workout in workoutEntries) {
+      final day = _dayStart(workout.date);
+      if (day.isBefore(weekStart) || day.isAfter(weekEnd)) continue;
+      count += 1;
+    }
+    return count;
+  }
+
+  int _dayCalories(String dayKey) {
+    var total = 0;
+    for (final meal in mealEntries) {
+      if (_dayKey(meal.ateAt) == dayKey) {
+        total += meal.calories;
+      }
+    }
+    return total;
+  }
+
+  double _dayProtein(String dayKey) {
+    var total = 0.0;
+    for (final meal in mealEntries) {
+      if (_dayKey(meal.ateAt) == dayKey) {
+        total += meal.protein;
+      }
+    }
+    return total;
+  }
+
   Future<void> addMealEntry({
     required String name,
     required int calories,
@@ -1739,4 +2184,54 @@ class _MealTotals {
   final double protein;
   final double carbs;
   final double fat;
+}
+
+class GameAchievement {
+  const GameAchievement({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.rewardXp,
+    required this.current,
+    required this.target,
+  });
+
+  final String id;
+  final String title;
+  final String description;
+  final int rewardXp;
+  final int current;
+  final int target;
+
+  bool get unlocked => current >= target;
+
+  double get progress {
+    if (target <= 0) return 0;
+    return (current / target).clamp(0.0, 1.0);
+  }
+}
+
+class GameQuest {
+  const GameQuest({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.rewardXp,
+    required this.current,
+    required this.target,
+  });
+
+  final String id;
+  final String title;
+  final String description;
+  final int rewardXp;
+  final int current;
+  final int target;
+
+  bool get completed => current >= target;
+
+  double get progress {
+    if (target <= 0) return 0;
+    return (current / target).clamp(0.0, 1.0);
+  }
 }

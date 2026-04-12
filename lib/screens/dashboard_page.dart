@@ -88,6 +88,21 @@ class DashboardPage extends StatelessWidget {
 
     final nextMeal = _nextMeal(appState);
     final nextGym = _nextGym(appState.gymSchedules);
+    final achievements = appState.gameAchievements;
+    final unlockedAchievements = achievements
+        .where((achievement) => achievement.unlocked)
+        .toList();
+    final inProgressAchievements =
+        achievements.where((achievement) => !achievement.unlocked).toList()
+          ..sort((a, b) => b.progress.compareTo(a.progress));
+    final highlightedAchievements = [
+      ...unlockedAchievements.take(2),
+      ...inProgressAchievements.take(2),
+    ];
+    final todayQuests = appState.todayQuests;
+    final completedQuests = todayQuests
+        .where((quest) => quest.completed)
+        .length;
 
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -122,6 +137,21 @@ class DashboardPage extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         _ProfileSnapshotCard(appState: appState),
+        const SizedBox(height: 12),
+        _GameProgressCard(
+          level: appState.currentLevel,
+          totalXp: appState.totalXp,
+          xpIntoLevel: appState.xpIntoCurrentLevel,
+          xpForLevel: appState.xpNeededForCurrentLevel,
+          xpToNextLevel: appState.xpToNextLevel,
+          levelProgress: appState.levelProgress,
+          completedQuests: completedQuests,
+          totalQuests: todayQuests.length,
+          achievementsUnlocked: unlockedAchievements.length,
+          achievementsTotal: achievements.length,
+          quests: todayQuests,
+          highlightedAchievements: highlightedAchievements,
+        ),
         const SizedBox(height: 16),
         _SummaryCard(
           title: 'Calories today',
@@ -622,6 +652,264 @@ class _ProfileSnapshotCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _GameProgressCard extends StatelessWidget {
+  const _GameProgressCard({
+    required this.level,
+    required this.totalXp,
+    required this.xpIntoLevel,
+    required this.xpForLevel,
+    required this.xpToNextLevel,
+    required this.levelProgress,
+    required this.completedQuests,
+    required this.totalQuests,
+    required this.achievementsUnlocked,
+    required this.achievementsTotal,
+    required this.quests,
+    required this.highlightedAchievements,
+  });
+
+  final int level;
+  final int totalXp;
+  final int xpIntoLevel;
+  final int xpForLevel;
+  final int xpToNextLevel;
+  final double levelProgress;
+  final int completedQuests;
+  final int totalQuests;
+  final int achievementsUnlocked;
+  final int achievementsTotal;
+  final List<GameQuest> quests;
+  final List<GameAchievement> highlightedAchievements;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary.withOpacity(0.16),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    'Level $level',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: colorScheme.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${NumberFormat.compact().format(totalXp)} XP',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: levelProgress.clamp(0.0, 1.0),
+                minHeight: 10,
+                backgroundColor: colorScheme.surfaceContainerHighest,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '$xpIntoLevel / $xpForLevel XP in this level · $xpToNextLevel XP to next level',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurface.withOpacity(0.72),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: _MetricChip(
+                    'Today quests',
+                    '$completedQuests / $totalQuests complete',
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _MetricChip(
+                    'Achievements',
+                    '$achievementsUnlocked / $achievementsTotal unlocked',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Text('Today quests', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 8),
+            for (final quest in quests.take(3)) ...[
+              _QuestTile(quest: quest),
+              if (quest != quests.take(3).last) const SizedBox(height: 6),
+            ],
+            if (highlightedAchievements.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Text(
+                'Achievement board',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 8),
+              for (final achievement in highlightedAchievements) ...[
+                _AchievementTile(achievement: achievement),
+                if (achievement != highlightedAchievements.last)
+                  const SizedBox(height: 6),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QuestTile extends StatelessWidget {
+  const _QuestTile({required this.quest});
+
+  final GameQuest quest;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        color: quest.completed
+            ? colorScheme.primary.withOpacity(0.12)
+            : colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.all(10),
+      child: Row(
+        children: [
+          Icon(
+            quest.completed ? Icons.check_circle_rounded : Icons.flag_rounded,
+            color: quest.completed
+                ? colorScheme.primary
+                : colorScheme.onSurfaceVariant,
+            size: 18,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  quest.title,
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+                Text(
+                  quest.description,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurface.withOpacity(0.72),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '+${quest.rewardXp} XP',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: colorScheme.primary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AchievementTile extends StatelessWidget {
+  const _AchievementTile({required this.achievement});
+
+  final GameAchievement achievement;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        color: achievement.unlocked
+            ? colorScheme.tertiary.withOpacity(0.16)
+            : colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.all(10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                achievement.unlocked
+                    ? Icons.emoji_events_rounded
+                    : Icons.workspace_premium_outlined,
+                size: 18,
+                color: achievement.unlocked
+                    ? colorScheme.tertiary
+                    : colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  achievement.title,
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+              ),
+              Text(
+                '+${achievement.rewardXp} XP',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: colorScheme.tertiary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            achievement.description,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurface.withOpacity(0.72),
+            ),
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: achievement.progress,
+              minHeight: 6,
+              backgroundColor: colorScheme.surfaceContainerHighest,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${achievement.current.clamp(0, achievement.target)} / ${achievement.target}',
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+        ],
       ),
     );
   }

@@ -88,6 +88,12 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           const SizedBox(height: 16),
+          _ProfileGameProgressCard(
+            appState: appState,
+            displayName: profile?.fullName,
+            imagePath: hasImage ? _selectedImagePath : null,
+          ),
+          const SizedBox(height: 12),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(14),
@@ -576,6 +582,287 @@ class _InsightsCard extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ProfileGameProgressCard extends StatelessWidget {
+  const _ProfileGameProgressCard({
+    required this.appState,
+    required this.displayName,
+    required this.imagePath,
+  });
+
+  final AppState appState;
+  final String? displayName;
+  final String? imagePath;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final level = appState.currentLevel;
+    final totalXp = appState.totalXp;
+    final levelProgress = appState.levelProgress;
+    final xpInLevel = appState.xpIntoCurrentLevel;
+    final xpForLevel = appState.xpNeededForCurrentLevel;
+    final xpToNext = appState.xpToNextLevel;
+    final unlockedAchievements = appState.gameAchievements
+        .where((a) => a.unlocked)
+        .length;
+    final totalAchievements = appState.gameAchievements.length;
+    final completedQuests = appState.todayQuests
+        .where((q) => q.completed)
+        .length;
+    final totalQuests = appState.todayQuests.length;
+    final nextAchievement =
+        appState.gameAchievements.where((a) => !a.unlocked).toList()..sort(
+          (a, b) => (a.target - a.current).compareTo(b.target - b.current),
+        );
+
+    final activeAchievement = nextAchievement.isEmpty
+        ? null
+        : nextAchievement.first;
+    final hasImage =
+        imagePath != null &&
+        imagePath!.isNotEmpty &&
+        File(imagePath!).existsSync();
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          Positioned(
+            top: -26,
+            right: -26,
+            child: Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: colorScheme.primary.withValues(alpha: 0.1),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -30,
+            left: -20,
+            child: Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: colorScheme.tertiary.withValues(alpha: 0.08),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    TweenAnimationBuilder<double>(
+                      duration: const Duration(milliseconds: 900),
+                      curve: Curves.easeOutCubic,
+                      tween: Tween(begin: 0, end: levelProgress),
+                      builder: (context, animatedProgress, child) {
+                        return SizedBox(
+                          width: 68,
+                          height: 68,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              CircularProgressIndicator(
+                                value: animatedProgress,
+                                strokeWidth: 6,
+                                backgroundColor:
+                                    colorScheme.surfaceContainerHighest,
+                              ),
+                              Center(
+                                child: CircleAvatar(
+                                  radius: 26,
+                                  backgroundImage: hasImage
+                                      ? FileImage(File(imagePath!))
+                                      : null,
+                                  child: hasImage
+                                      ? null
+                                      : const Icon(Icons.person_rounded),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            (displayName == null || displayName!.trim().isEmpty)
+                                ? 'Your fitness profile'
+                                : displayName!,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 3),
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 350),
+                            child: Text(
+                              'Level $level · ${NumberFormat.compact().format(totalXp)} XP',
+                              key: ValueKey('level-$level-$totalXp'),
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: colorScheme.onSurface.withValues(
+                                      alpha: 0.74,
+                                    ),
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colorScheme.tertiary.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        _rankTitle(level),
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: colorScheme.tertiary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                TweenAnimationBuilder<double>(
+                  duration: const Duration(milliseconds: 950),
+                  curve: Curves.easeOutCubic,
+                  tween: Tween(begin: 0, end: levelProgress),
+                  builder: (context, animatedProgress, child) {
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(999),
+                      child: LinearProgressIndicator(
+                        value: animatedProgress,
+                        minHeight: 10,
+                        backgroundColor: colorScheme.surfaceContainerHighest,
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '$xpInLevel / $xpForLevel XP in this level · $xpToNext XP to next level',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurface.withValues(alpha: 0.74),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _ProgressStatChip(
+                      icon: Icons.emoji_events_rounded,
+                      label: 'Achievements',
+                      value: '$unlockedAchievements/$totalAchievements',
+                    ),
+                    _ProgressStatChip(
+                      icon: Icons.flag_rounded,
+                      label: 'Daily quests',
+                      value: '$completedQuests/$totalQuests',
+                    ),
+                  ],
+                ),
+                if (activeAchievement != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.auto_awesome_rounded,
+                          color: colorScheme.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Next unlock: ${activeAchievement.title}',
+                                style: Theme.of(context).textTheme.labelLarge,
+                              ),
+                              Text(
+                                '${activeAchievement.current.clamp(0, activeAchievement.target)} / ${activeAchievement.target} · +${activeAchievement.rewardXp} XP',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _rankTitle(int level) {
+    if (level >= 20) return 'Elite';
+    if (level >= 12) return 'Pro';
+    if (level >= 7) return 'Advanced';
+    if (level >= 3) return 'Rising';
+    return 'Starter';
+  }
+}
+
+class _ProgressStatChip extends StatelessWidget {
+  const _ProgressStatChip({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: colorScheme.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Text('$label: $value', style: Theme.of(context).textTheme.labelSmall),
+        ],
       ),
     );
   }
