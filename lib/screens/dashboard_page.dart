@@ -133,9 +133,13 @@ class DashboardPage extends StatelessWidget {
         _GoalProgressCard(
           consumedCalories: totalCalories,
           consumedProtein: totalProtein,
+          consumedCarbs: totalCarbs,
+          consumedFat: totalFat,
           weeklyWorkouts: weeklyWorkouts,
           calorieGoal: appState.dailyCalorieGoal,
           proteinGoal: appState.dailyProteinGoal,
+          carbGoal: appState.dailyCarbGoal,
+          fatGoal: appState.dailyFatGoal,
           workoutGoal: appState.weeklyWorkoutGoal,
           onEditGoals: () => _openGoalsDialog(context, appState),
         ),
@@ -284,6 +288,12 @@ class DashboardPage extends StatelessWidget {
     final protein = TextEditingController(
       text: state.dailyProteinGoal.toStringAsFixed(0),
     );
+    final carbs = TextEditingController(
+      text: state.dailyCarbGoal.toStringAsFixed(0),
+    );
+    final fat = TextEditingController(
+      text: state.dailyFatGoal.toStringAsFixed(0),
+    );
     final workouts = TextEditingController(
       text: state.weeklyWorkoutGoal.toString(),
     );
@@ -345,6 +355,36 @@ class DashboardPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 TextFormField(
+                  controller: carbs,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Daily carbs goal (g)',
+                  ),
+                  validator: (value) {
+                    final parsed = double.tryParse((value ?? '').trim());
+                    if (parsed == null || parsed <= 0) return 'Invalid value';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: fat,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Daily fat goal (g)',
+                  ),
+                  validator: (value) {
+                    final parsed = double.tryParse((value ?? '').trim());
+                    if (parsed == null || parsed <= 0) return 'Invalid value';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
                   controller: workouts,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
@@ -363,6 +403,8 @@ class DashboardPage extends StatelessWidget {
                     await state.updateGoals(
                       dailyCalories: int.parse(calories.text.trim()),
                       dailyProtein: double.parse(protein.text.trim()),
+                      dailyCarbs: double.parse(carbs.text.trim()),
+                      dailyFat: double.parse(fat.text.trim()),
                       weeklyWorkouts: int.parse(workouts.text.trim()),
                     );
                     if (context.mounted) Navigator.pop(context);
@@ -589,18 +631,26 @@ class _GoalProgressCard extends StatelessWidget {
   const _GoalProgressCard({
     required this.consumedCalories,
     required this.consumedProtein,
+    required this.consumedCarbs,
+    required this.consumedFat,
     required this.weeklyWorkouts,
     required this.calorieGoal,
     required this.proteinGoal,
+    required this.carbGoal,
+    required this.fatGoal,
     required this.workoutGoal,
     required this.onEditGoals,
   });
 
   final int consumedCalories;
   final double consumedProtein;
+  final double consumedCarbs;
+  final double consumedFat;
   final int weeklyWorkouts;
   final int calorieGoal;
   final double proteinGoal;
+  final double carbGoal;
+  final double fatGoal;
   final int workoutGoal;
   final VoidCallback onEditGoals;
 
@@ -612,6 +662,12 @@ class _GoalProgressCard extends StatelessWidget {
     final proteinProgress = proteinGoal <= 0
         ? 0.0
         : (consumedProtein / proteinGoal).clamp(0.0, 1.0);
+    final carbsProgress = carbGoal <= 0
+        ? 0.0
+        : (consumedCarbs / carbGoal).clamp(0.0, 1.0);
+    final fatProgress = fatGoal <= 0
+        ? 0.0
+        : (consumedFat / fatGoal).clamp(0.0, 1.0);
     final workoutProgress = workoutGoal <= 0
         ? 0.0
         : (weeklyWorkouts / workoutGoal).clamp(0.0, 1.0);
@@ -647,6 +703,20 @@ class _GoalProgressCard extends StatelessWidget {
               value:
                   '${consumedProtein.toStringAsFixed(1)} / ${proteinGoal.toStringAsFixed(0)} g',
               progress: proteinProgress,
+            ),
+            const SizedBox(height: 10),
+            _ProgressRow(
+              label: 'Carbs',
+              value:
+                  '${consumedCarbs.toStringAsFixed(1)} / ${carbGoal.toStringAsFixed(0)} g',
+              progress: carbsProgress,
+            ),
+            const SizedBox(height: 10),
+            _ProgressRow(
+              label: 'Fat',
+              value:
+                  '${consumedFat.toStringAsFixed(1)} / ${fatGoal.toStringAsFixed(0)} g',
+              progress: fatProgress,
             ),
             const SizedBox(height: 10),
             _ProgressRow(

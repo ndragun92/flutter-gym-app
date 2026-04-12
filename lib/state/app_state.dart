@@ -52,6 +52,8 @@ class AppState extends ChangeNotifier {
   // Personalized defaults for slow cut while preserving muscle.
   int dailyCalorieGoal = 2500;
   double dailyProteinGoal = 190;
+  double dailyCarbGoal = 250;
+  double dailyFatGoal = 80;
   int weeklyWorkoutGoal = 4;
   int defaultDailyStepGoal = 10000;
 
@@ -196,6 +198,8 @@ class AppState extends ChangeNotifier {
         final parsed = jsonDecode(goalRaw) as Map<String, dynamic>;
         final calories = (parsed['dailyCalorieGoal'] as num?)?.toInt();
         final protein = (parsed['dailyProteinGoal'] as num?)?.toDouble();
+        final carbs = (parsed['dailyCarbGoal'] as num?)?.toDouble();
+        final fat = (parsed['dailyFatGoal'] as num?)?.toDouble();
         final workouts = (parsed['weeklyWorkoutGoal'] as num?)?.toInt();
         final defaultSteps = (parsed['defaultDailyStepGoal'] as num?)?.toInt();
 
@@ -205,6 +209,8 @@ class AppState extends ChangeNotifier {
         if (shouldMigrateLegacyDefaults) {
           dailyCalorieGoal = 2500;
           dailyProteinGoal = 190;
+          dailyCarbGoal = 250;
+          dailyFatGoal = 80;
           weeklyWorkoutGoal = 4;
           await _saveGoals();
         } else {
@@ -213,6 +219,12 @@ class AppState extends ChangeNotifier {
           }
           if (protein != null && protein > 0) {
             dailyProteinGoal = protein;
+          }
+          if (carbs != null && carbs > 0) {
+            dailyCarbGoal = carbs;
+          }
+          if (fat != null && fat > 0) {
+            dailyFatGoal = fat;
           }
           if (workouts != null && workouts > 0) {
             weeklyWorkoutGoal = workouts;
@@ -272,6 +284,8 @@ class AppState extends ChangeNotifier {
       jsonEncode({
         'dailyCalorieGoal': dailyCalorieGoal,
         'dailyProteinGoal': dailyProteinGoal,
+        'dailyCarbGoal': dailyCarbGoal,
+        'dailyFatGoal': dailyFatGoal,
         'weeklyWorkoutGoal': weeklyWorkoutGoal,
         'defaultDailyStepGoal': defaultDailyStepGoal,
       }),
@@ -470,6 +484,8 @@ class AppState extends ChangeNotifier {
         'goals': {
           'dailyCalorieGoal': dailyCalorieGoal,
           'dailyProteinGoal': dailyProteinGoal,
+          'dailyCarbGoal': dailyCarbGoal,
+          'dailyFatGoal': dailyFatGoal,
           'weeklyWorkoutGoal': weeklyWorkoutGoal,
           'defaultDailyStepGoal': defaultDailyStepGoal,
         },
@@ -672,6 +688,8 @@ class AppState extends ChangeNotifier {
 
     dailyCalorieGoal = 2500;
     dailyProteinGoal = 190;
+    dailyCarbGoal = 250;
+    dailyFatGoal = 80;
     weeklyWorkoutGoal = 4;
     defaultDailyStepGoal = 10000;
 
@@ -683,6 +701,8 @@ class AppState extends ChangeNotifier {
       final goals = Map<String, dynamic>.from(rawGoals);
       final calories = (goals['dailyCalorieGoal'] as num?)?.toInt();
       final protein = (goals['dailyProteinGoal'] as num?)?.toDouble();
+      final carbs = (goals['dailyCarbGoal'] as num?)?.toDouble();
+      final fat = (goals['dailyFatGoal'] as num?)?.toDouble();
       final workouts = (goals['weeklyWorkoutGoal'] as num?)?.toInt();
       final defaultSteps = (goals['defaultDailyStepGoal'] as num?)?.toInt();
       if (calories != null && calories > 0) {
@@ -690,6 +710,12 @@ class AppState extends ChangeNotifier {
       }
       if (protein != null && protein > 0) {
         dailyProteinGoal = protein;
+      }
+      if (carbs != null && carbs > 0) {
+        dailyCarbGoal = carbs;
+      }
+      if (fat != null && fat > 0) {
+        dailyFatGoal = fat;
       }
       if (workouts != null && workouts > 0) {
         weeklyWorkoutGoal = workouts;
@@ -1498,10 +1524,14 @@ class AppState extends ChangeNotifier {
   Future<void> updateGoals({
     required int dailyCalories,
     required double dailyProtein,
+    required double dailyCarbs,
+    required double dailyFat,
     required int weeklyWorkouts,
   }) async {
     dailyCalorieGoal = dailyCalories.clamp(1, 20000);
     dailyProteinGoal = dailyProtein.clamp(1, 1000);
+    dailyCarbGoal = dailyCarbs.clamp(1, 1000);
+    dailyFatGoal = dailyFat.clamp(1, 500);
     weeklyWorkoutGoal = weeklyWorkouts.clamp(1, 14);
     await _saveGoals();
     notifyListeners();
@@ -1643,6 +1673,12 @@ class AppState extends ChangeNotifier {
 
     dailyCalorieGoal = calories;
     dailyProteinGoal = protein;
+    final nonProteinCalories = (calories - (protein * 4)).clamp(300, 2600);
+    dailyFatGoal = (nonProteinCalories * 0.35 / 9).clamp(30, 200);
+    dailyCarbGoal = ((nonProteinCalories - (dailyFatGoal * 9)) / 4).clamp(
+      40,
+      600,
+    );
     weeklyWorkoutGoal = workouts;
     await _saveGoals();
     notifyListeners();
