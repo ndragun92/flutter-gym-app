@@ -679,7 +679,7 @@ class _RootShellState extends State<_RootShell> {
                     index: index,
                     children: [
                       const DashboardPage(),
-                      NutritionPage(isActive: index == 1),
+                      const NutritionPage(),
                       const MeasurementsPage(),
                       const WorkoutPage(),
                       const SettingsPage(),

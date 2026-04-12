@@ -198,37 +198,16 @@ const List<_MealItemSuggestion> _defaultMealItemSuggestions = [
 ];
 
 class NutritionPage extends StatefulWidget {
-  const NutritionPage({super.key, this.isActive = true});
-
-  final bool isActive;
+  const NutritionPage({super.key});
 
   @override
   State<NutritionPage> createState() => _NutritionPageState();
 }
 
 class _NutritionPageState extends State<NutritionPage> {
-  int _mealLogResetVersion = 0;
+  String _sectionExpansionKey(String section) => 'nutrition.section.$section';
 
-  @override
-  void initState() {
-    super.initState();
-    _resetMealLogExpansion();
-  }
-
-  @override
-  void didUpdateWidget(covariant NutritionPage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.isActive && !oldWidget.isActive) {
-      _resetMealLogExpansion();
-    }
-  }
-
-  void _resetMealLogExpansion() {
-    if (!mounted) return;
-    setState(() {
-      _mealLogResetVersion += 1;
-    });
-  }
+  String _mealLogDayExpansionKey(String dayKey) => 'nutrition.mealLog.$dayKey';
 
   String _dateKey(DateTime value) {
     final day = DateTime(value.year, value.month, value.day);
@@ -248,6 +227,49 @@ class _NutritionPageState extends State<NutritionPage> {
       return value.toStringAsFixed(0);
     }
     return value.toStringAsFixed(1);
+  }
+
+  ShapeBorder _sectionTileShape() {
+    return RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(18),
+      side: BorderSide.none,
+    );
+  }
+
+  Widget _sectionTrailing(
+    BuildContext context, {
+    required bool expanded,
+    String? addTooltip,
+    VoidCallback? onAdd,
+  }) {
+    final iconColor = Theme.of(context).colorScheme.primary;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (onAdd != null) ...[
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: IconButton(
+              tooltip: addTooltip,
+              onPressed: onAdd,
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              padding: EdgeInsets.zero,
+              icon: const Icon(Icons.add_rounded, size: 18),
+            ),
+          ),
+          const SizedBox(width: 6),
+        ],
+        Icon(
+          expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.75),
+        ),
+      ],
+    );
   }
 
   @override
@@ -290,187 +312,199 @@ class _NutritionPageState extends State<NutritionPage> {
   }
 
   Widget _scheduleSection(BuildContext context, AppState state) {
+    final expansionKey = _sectionExpansionKey('schedule');
+    final isExpanded = state.isSectionExpanded(
+      expansionKey,
+      defaultValue: true,
+    );
+
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  'Meal schedule',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const Spacer(),
-                IconButton(
-                  tooltip: 'Add meal schedule',
-                  icon: const Icon(Icons.add_rounded),
-                  onPressed: () => _openAddOrEditScheduleDialog(context),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            if (state.mealSchedules.isEmpty)
-              Text(
-                'No schedule yet. Add your recurring meals.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              )
-            else
-              ...state.mealSchedules.map((s) {
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.access_time_rounded),
-                  ),
-                  title: Text(s.title),
-                  subtitle: Text('Every day at ${s.formattedTime}'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Switch.adaptive(
-                        value: s.enabled,
-                        onChanged: (v) => state.toggleMealSchedule(s.id, v),
-                      ),
-                      PopupMenuButton<_NutritionCardAction>(
-                        tooltip: 'More actions',
-                        icon: const Icon(Icons.more_vert_rounded),
-                        onSelected: (action) {
-                          switch (action) {
-                            case _NutritionCardAction.log:
-                              break;
-                            case _NutritionCardAction.edit:
-                              _openAddOrEditScheduleDialog(
-                                context,
-                                existing: s,
-                              );
-                            case _NutritionCardAction.delete:
-                              state.removeMealSchedule(s.id);
-                          }
-                        },
-                        itemBuilder: (context) => const [
-                          PopupMenuItem<_NutritionCardAction>(
-                            value: _NutritionCardAction.edit,
-                            child: ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: Icon(Icons.edit_outlined),
-                              title: Text('Edit'),
-                            ),
-                          ),
-                          PopupMenuItem<_NutritionCardAction>(
-                            value: _NutritionCardAction.delete,
-                            child: ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: Icon(Icons.delete_outline_rounded),
-                              title: Text('Delete'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                );
-              }),
-          ],
+      child: ExpansionTile(
+        key: const ValueKey('nutrition_section_schedule'),
+        shape: _sectionTileShape(),
+        collapsedShape: _sectionTileShape(),
+        clipBehavior: Clip.antiAlias,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+        childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+        initiallyExpanded: isExpanded,
+        onExpansionChanged: (expanded) {
+          state.setSectionExpanded(expansionKey, expanded);
+        },
+        title: Text(
+          'Meal schedule',
+          style: Theme.of(context).textTheme.titleMedium,
         ),
+        subtitle: Text('${state.mealSchedules.length} entries'),
+        trailing: _sectionTrailing(
+          context,
+          expanded: isExpanded,
+          addTooltip: 'Add meal schedule',
+          onAdd: () => _openAddOrEditScheduleDialog(context),
+        ),
+        children: [
+          if (state.mealSchedules.isEmpty)
+            Text(
+              'No schedule yet. Add your recurring meals.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            )
+          else
+            ...state.mealSchedules.map((s) {
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const CircleAvatar(
+                  child: Icon(Icons.access_time_rounded),
+                ),
+                title: Text(s.title),
+                subtitle: Text('Every day at ${s.formattedTime}'),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Switch.adaptive(
+                      value: s.enabled,
+                      onChanged: (v) => state.toggleMealSchedule(s.id, v),
+                    ),
+                    PopupMenuButton<_NutritionCardAction>(
+                      tooltip: 'More actions',
+                      icon: const Icon(Icons.more_vert_rounded),
+                      onSelected: (action) {
+                        switch (action) {
+                          case _NutritionCardAction.log:
+                            break;
+                          case _NutritionCardAction.edit:
+                            _openAddOrEditScheduleDialog(context, existing: s);
+                          case _NutritionCardAction.delete:
+                            state.removeMealSchedule(s.id);
+                        }
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem<_NutritionCardAction>(
+                          value: _NutritionCardAction.edit,
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.edit_outlined),
+                            title: Text('Edit'),
+                          ),
+                        ),
+                        PopupMenuItem<_NutritionCardAction>(
+                          value: _NutritionCardAction.delete,
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.delete_outline_rounded),
+                            title: Text('Delete'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }),
+        ],
       ),
     );
   }
 
   Widget _mealPlanSection(BuildContext context, AppState state) {
     final mealItemsById = {for (final item in state.mealItems) item.id: item};
+    final expansionKey = _sectionExpansionKey('mealPlan');
+    final isExpanded = state.isSectionExpanded(
+      expansionKey,
+      defaultValue: true,
+    );
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  'Meal plan',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const Spacer(),
-                IconButton(
-                  tooltip: 'Add meal plan item',
-                  icon: const Icon(Icons.add_rounded),
-                  onPressed: () => _openAddOrEditMealPlanDialog(context),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            if (state.mealPlanItems.isEmpty)
-              Text(
-                'No meal plan yet. Add your planned meals and log them with one tap.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              )
-            else
-              ...state.mealPlanItems.map((mealPlan) {
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.menu_book_rounded),
-                  ),
-                  title: Text(mealPlan.name),
-                  subtitle: Text(
-                    '${mealPlan.mealItemIds.length} items · ${mealPlan.calories} kcal · P ${mealPlan.protein.toStringAsFixed(1)} · C ${mealPlan.carbs.toStringAsFixed(1)} · F ${mealPlan.fat.toStringAsFixed(1)}\n${mealPlan.mealItemIds.map((id) => mealItemsById[id]?.name ?? 'Unknown').join(', ')}',
-                  ),
-                  isThreeLine: true,
-                  trailing: PopupMenuButton<_NutritionCardAction>(
-                    tooltip: 'More actions',
-                    icon: const Icon(Icons.more_vert_rounded),
-                    onSelected: (action) async {
-                      switch (action) {
-                        case _NutritionCardAction.log:
-                          await state.createMealLogFromPlan(mealPlan.id);
-                          if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Meal logged: ${mealPlan.name}'),
-                            ),
-                          );
-                        case _NutritionCardAction.edit:
-                          _openAddOrEditMealPlanDialog(
-                            context,
-                            existing: mealPlan,
-                          );
-                        case _NutritionCardAction.delete:
-                          state.removeMealPlanItem(mealPlan.id);
-                      }
-                    },
-                    itemBuilder: (context) => const [
-                      PopupMenuItem<_NutritionCardAction>(
-                        value: _NutritionCardAction.log,
-                        child: ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(Icons.check_circle_outline_rounded),
-                          title: Text('Add to log'),
-                        ),
-                      ),
-                      PopupMenuItem<_NutritionCardAction>(
-                        value: _NutritionCardAction.edit,
-                        child: ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(Icons.edit_outlined),
-                          title: Text('Edit'),
-                        ),
-                      ),
-                      PopupMenuItem<_NutritionCardAction>(
-                        value: _NutritionCardAction.delete,
-                        child: ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(Icons.delete_outline_rounded),
-                          title: Text('Delete'),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-          ],
+      child: ExpansionTile(
+        key: const ValueKey('nutrition_section_meal_plan'),
+        shape: _sectionTileShape(),
+        collapsedShape: _sectionTileShape(),
+        clipBehavior: Clip.antiAlias,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+        childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+        initiallyExpanded: isExpanded,
+        onExpansionChanged: (expanded) {
+          state.setSectionExpanded(expansionKey, expanded);
+        },
+        title: Text(
+          'Meal plan',
+          style: Theme.of(context).textTheme.titleMedium,
         ),
+        subtitle: Text('${state.mealPlanItems.length} entries'),
+        trailing: _sectionTrailing(
+          context,
+          expanded: isExpanded,
+          addTooltip: 'Add meal plan item',
+          onAdd: () => _openAddOrEditMealPlanDialog(context),
+        ),
+        children: [
+          if (state.mealPlanItems.isEmpty)
+            Text(
+              'No meal plan yet. Add your planned meals and log them with one tap.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            )
+          else
+            ...state.mealPlanItems.map((mealPlan) {
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const CircleAvatar(
+                  child: Icon(Icons.menu_book_rounded),
+                ),
+                title: Text(mealPlan.name),
+                subtitle: Text(
+                  '${mealPlan.mealItemIds.length} items · ${mealPlan.calories} kcal · P ${mealPlan.protein.toStringAsFixed(1)} · C ${mealPlan.carbs.toStringAsFixed(1)} · F ${mealPlan.fat.toStringAsFixed(1)}\n${mealPlan.mealItemIds.map((id) => mealItemsById[id]?.name ?? 'Unknown').join(', ')}',
+                ),
+                isThreeLine: true,
+                trailing: PopupMenuButton<_NutritionCardAction>(
+                  tooltip: 'More actions',
+                  icon: const Icon(Icons.more_vert_rounded),
+                  onSelected: (action) async {
+                    switch (action) {
+                      case _NutritionCardAction.log:
+                        await state.createMealLogFromPlan(mealPlan.id);
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Meal logged: ${mealPlan.name}'),
+                          ),
+                        );
+                      case _NutritionCardAction.edit:
+                        _openAddOrEditMealPlanDialog(
+                          context,
+                          existing: mealPlan,
+                        );
+                      case _NutritionCardAction.delete:
+                        state.removeMealPlanItem(mealPlan.id);
+                    }
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem<_NutritionCardAction>(
+                      value: _NutritionCardAction.log,
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.check_circle_outline_rounded),
+                        title: Text('Add to log'),
+                      ),
+                    ),
+                    PopupMenuItem<_NutritionCardAction>(
+                      value: _NutritionCardAction.edit,
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.edit_outlined),
+                        title: Text('Edit'),
+                      ),
+                    ),
+                    PopupMenuItem<_NutritionCardAction>(
+                      value: _NutritionCardAction.delete,
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.delete_outline_rounded),
+                        title: Text('Delete'),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+        ],
       ),
     );
   }
@@ -482,126 +516,133 @@ class _NutritionPageState extends State<NutritionPage> {
     final suggestedItems = _defaultMealItemSuggestions
         .where((item) => !existingNames.contains(item.name.toLowerCase()))
         .toList();
+    final expansionKey = _sectionExpansionKey('mealItems');
+    final isExpanded = state.isSectionExpanded(
+      expansionKey,
+      defaultValue: true,
+    );
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  'Meal items',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const Spacer(),
-                IconButton(
-                  tooltip: 'Add meal item',
-                  icon: const Icon(Icons.add_rounded),
-                  onPressed: () => _openAddOrEditMealItemDialog(context),
-                ),
-              ],
+      child: ExpansionTile(
+        key: const ValueKey('nutrition_section_meal_items'),
+        shape: _sectionTileShape(),
+        collapsedShape: _sectionTileShape(),
+        clipBehavior: Clip.antiAlias,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+        childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+        initiallyExpanded: isExpanded,
+        onExpansionChanged: (expanded) {
+          state.setSectionExpanded(expansionKey, expanded);
+        },
+        title: Text(
+          'Meal items',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        subtitle: Text('${state.mealItems.length} entries'),
+        trailing: _sectionTrailing(
+          context,
+          expanded: isExpanded,
+          addTooltip: 'Add meal item',
+          onAdd: () => _openAddOrEditMealItemDialog(context),
+        ),
+        children: [
+          if (suggestedItems.isNotEmpty) ...[
+            Text(
+              'Quick add suggestions',
+              style: Theme.of(context).textTheme.titleSmall,
             ),
             const SizedBox(height: 6),
-            if (suggestedItems.isNotEmpty) ...[
-              Text(
-                'Quick add suggestions',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-              const SizedBox(height: 6),
-              SizedBox(
-                height: 38,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: suggestedItems.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 8),
-                  itemBuilder: (context, index) {
-                    final suggestion = suggestedItems[index];
-                    return ActionChip(
-                      avatar: const Icon(Icons.add_circle_outline_rounded),
-                      label: Text(suggestion.name),
-                      onPressed: () async {
-                        await state.addMealItem(
-                          name: suggestion.name,
-                          baseMassGrams: suggestion.baseMassGrams,
-                          massGrams: suggestion.massGrams,
-                          calories: suggestion.calories,
-                          protein: suggestion.protein,
-                          carbs: suggestion.carbs,
-                          fat: suggestion.fat,
-                        );
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Added: ${suggestion.name}')),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 10),
-            ],
-            if (state.mealItems.isEmpty)
-              Text(
-                'No meal items yet. Add ingredients like Egg, Chicken Breast, Rice...',
-                style: Theme.of(context).textTheme.bodyMedium,
-              )
-            else
-              ...state.mealItems.map((item) {
-                final hasPhoto =
-                    item.imagePath != null &&
-                    item.imagePath!.isNotEmpty &&
-                    File(item.imagePath!).existsSync();
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(
-                    backgroundImage: hasPhoto
-                        ? FileImage(File(item.imagePath!))
-                        : null,
-                    child: hasPhoto ? null : const Icon(Icons.egg_alt_rounded),
-                  ),
-                  title: Text(item.name),
-                  subtitle: Text(
-                    '${_formatMass(item.massGrams)}g (base ${_formatMass(item.baseMassGrams)}g) · ${item.scaledCalories} kcal\nP ${item.scaledProtein.toStringAsFixed(1)} · C ${item.scaledCarbs.toStringAsFixed(1)} · F ${item.scaledFat.toStringAsFixed(1)}',
-                  ),
-                  isThreeLine: true,
-                  trailing: PopupMenuButton<_NutritionCardAction>(
-                    tooltip: 'More actions',
-                    icon: const Icon(Icons.more_vert_rounded),
-                    onSelected: (action) {
-                      switch (action) {
-                        case _NutritionCardAction.log:
-                          break;
-                        case _NutritionCardAction.edit:
-                          _openAddOrEditMealItemDialog(context, existing: item);
-                        case _NutritionCardAction.delete:
-                          state.removeMealItem(item.id);
-                      }
+            SizedBox(
+              height: 38,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: suggestedItems.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  final suggestion = suggestedItems[index];
+                  return ActionChip(
+                    avatar: const Icon(Icons.add_circle_outline_rounded),
+                    label: Text(suggestion.name),
+                    onPressed: () async {
+                      await state.addMealItem(
+                        name: suggestion.name,
+                        baseMassGrams: suggestion.baseMassGrams,
+                        massGrams: suggestion.massGrams,
+                        calories: suggestion.calories,
+                        protein: suggestion.protein,
+                        carbs: suggestion.carbs,
+                        fat: suggestion.fat,
+                      );
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Added: ${suggestion.name}')),
+                      );
                     },
-                    itemBuilder: (context) => const [
-                      PopupMenuItem<_NutritionCardAction>(
-                        value: _NutritionCardAction.edit,
-                        child: ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(Icons.edit_outlined),
-                          title: Text('Edit'),
-                        ),
-                      ),
-                      PopupMenuItem<_NutritionCardAction>(
-                        value: _NutritionCardAction.delete,
-                        child: ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(Icons.delete_outline_rounded),
-                          title: Text('Delete'),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 10),
           ],
-        ),
+          if (state.mealItems.isEmpty)
+            Text(
+              'No meal items yet. Add ingredients like Egg, Chicken Breast, Rice...',
+              style: Theme.of(context).textTheme.bodyMedium,
+            )
+          else
+            ...state.mealItems.map((item) {
+              final hasPhoto =
+                  item.imagePath != null &&
+                  item.imagePath!.isNotEmpty &&
+                  File(item.imagePath!).existsSync();
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  backgroundImage: hasPhoto
+                      ? FileImage(File(item.imagePath!))
+                      : null,
+                  child: hasPhoto ? null : const Icon(Icons.egg_alt_rounded),
+                ),
+                title: Text(item.name),
+                subtitle: Text(
+                  '${_formatMass(item.massGrams)}g (base ${_formatMass(item.baseMassGrams)}g) · ${item.scaledCalories} kcal\nP ${item.scaledProtein.toStringAsFixed(1)} · C ${item.scaledCarbs.toStringAsFixed(1)} · F ${item.scaledFat.toStringAsFixed(1)}',
+                ),
+                isThreeLine: true,
+                trailing: PopupMenuButton<_NutritionCardAction>(
+                  tooltip: 'More actions',
+                  icon: const Icon(Icons.more_vert_rounded),
+                  onSelected: (action) {
+                    switch (action) {
+                      case _NutritionCardAction.log:
+                        break;
+                      case _NutritionCardAction.edit:
+                        _openAddOrEditMealItemDialog(context, existing: item);
+                      case _NutritionCardAction.delete:
+                        state.removeMealItem(item.id);
+                    }
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem<_NutritionCardAction>(
+                      value: _NutritionCardAction.edit,
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.edit_outlined),
+                        title: Text('Edit'),
+                      ),
+                    ),
+                    PopupMenuItem<_NutritionCardAction>(
+                      value: _NutritionCardAction.delete,
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.delete_outline_rounded),
+                        title: Text('Delete'),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+        ],
       ),
     );
   }
@@ -615,62 +656,81 @@ class _NutritionPageState extends State<NutritionPage> {
 
     final today = DateTime.now();
     final todayKey = _dateKey(today);
+    final expansionKey = _sectionExpansionKey('mealLog');
+    final isExpanded = state.isSectionExpanded(
+      expansionKey,
+      defaultValue: true,
+    );
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Meal log', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 10),
-            if (state.mealEntries.isEmpty)
-              Text(
-                'No meals logged yet.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              )
-            else
-              ...grouped.entries.map((entry) {
-                final day = entry.key;
-                final meals = entry.value;
-                final dayKey = _dateKey(day);
-                final totalCalories = meals.fold<int>(
-                  0,
-                  (sum, meal) => sum + meal.calories,
-                );
+      child: ExpansionTile(
+        key: const ValueKey('nutrition_section_meal_log'),
+        shape: _sectionTileShape(),
+        collapsedShape: _sectionTileShape(),
+        clipBehavior: Clip.antiAlias,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+        childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+        initiallyExpanded: isExpanded,
+        onExpansionChanged: (expanded) {
+          state.setSectionExpanded(expansionKey, expanded);
+        },
+        title: Text('Meal log', style: Theme.of(context).textTheme.titleMedium),
+        subtitle: Text('${state.mealEntries.length} entries'),
+        trailing: _sectionTrailing(context, expanded: isExpanded),
+        children: [
+          if (state.mealEntries.isEmpty)
+            Text(
+              'No meals logged yet.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            )
+          else
+            ...grouped.entries.map((entry) {
+              final day = entry.key;
+              final meals = entry.value;
+              final dayKey = _dateKey(day);
+              final totalCalories = meals.fold<int>(
+                0,
+                (sum, meal) => sum + meal.calories,
+              );
+              final dayExpansionKey = _mealLogDayExpansionKey(dayKey);
 
-                return ExpansionTile(
-                  key: ValueKey('${_mealLogResetVersion}_$dayKey'),
-                  tilePadding: EdgeInsets.zero,
-                  childrenPadding: const EdgeInsets.only(top: 4, bottom: 8),
-                  initiallyExpanded: dayKey == todayKey,
-                  title: Text(
-                    dayKey == todayKey
-                        ? 'Today'
-                        : DateFormat('EEE, d MMM yyyy').format(day),
-                  ),
-                  subtitle: Text('${meals.length} meals · $totalCalories kcal'),
-                  children: meals.map((MealEntry meal) {
-                    return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                      leading: const CircleAvatar(
-                        child: Icon(Icons.fastfood_rounded),
-                      ),
-                      title: Text(meal.name),
-                      subtitle: Text(
-                        '${DateFormat('HH:mm').format(meal.ateAt)} · ${meal.calories} kcal\nP ${meal.protein.toStringAsFixed(1)} · C ${meal.carbs.toStringAsFixed(1)} · F ${meal.fat.toStringAsFixed(1)}',
-                      ),
-                      isThreeLine: true,
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline_rounded),
-                        onPressed: () => state.removeMealEntry(meal.id),
-                      ),
-                    );
-                  }).toList(),
-                );
-              }),
-          ],
-        ),
+              return ExpansionTile(
+                key: ValueKey('meal_log_$dayKey'),
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: const EdgeInsets.only(top: 4, bottom: 8),
+                initiallyExpanded: state.isSectionExpanded(
+                  dayExpansionKey,
+                  defaultValue: dayKey == todayKey,
+                ),
+                onExpansionChanged: (expanded) {
+                  state.setSectionExpanded(dayExpansionKey, expanded);
+                },
+                title: Text(
+                  dayKey == todayKey
+                      ? 'Today'
+                      : DateFormat('EEE, d MMM yyyy').format(day),
+                ),
+                subtitle: Text('${meals.length} meals · $totalCalories kcal'),
+                children: meals.map((MealEntry meal) {
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(vertical: 4),
+                    leading: const CircleAvatar(
+                      child: Icon(Icons.fastfood_rounded),
+                    ),
+                    title: Text(meal.name),
+                    subtitle: Text(
+                      '${DateFormat('HH:mm').format(meal.ateAt)} · ${meal.calories} kcal\nP ${meal.protein.toStringAsFixed(1)} · C ${meal.carbs.toStringAsFixed(1)} · F ${meal.fat.toStringAsFixed(1)}',
+                    ),
+                    isThreeLine: true,
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete_outline_rounded),
+                      onPressed: () => state.removeMealEntry(meal.id),
+                    ),
+                  );
+                }).toList(),
+              );
+            }),
+        ],
       ),
     );
   }

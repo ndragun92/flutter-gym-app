@@ -12,6 +12,51 @@ enum _WorkoutCardAction { edit, delete }
 class WorkoutPage extends StatelessWidget {
   const WorkoutPage({super.key});
 
+  String _sectionExpansionKey(String section) => 'workout.section.$section';
+
+  ShapeBorder _sectionTileShape() {
+    return RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(18),
+      side: BorderSide.none,
+    );
+  }
+
+  Widget _sectionTrailing(
+    BuildContext context, {
+    required bool expanded,
+    String? addTooltip,
+    VoidCallback? onAdd,
+  }) {
+    final iconColor = Theme.of(context).colorScheme.primary;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (onAdd != null) ...[
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: IconButton(
+              tooltip: addTooltip,
+              onPressed: onAdd,
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              padding: EdgeInsets.zero,
+              icon: const Icon(Icons.add_rounded, size: 18),
+            ),
+          ),
+          const SizedBox(width: 6),
+        ],
+        Icon(
+          expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.75),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
@@ -47,89 +92,95 @@ class WorkoutPage extends StatelessWidget {
   }
 
   Widget _scheduleSection(BuildContext context, AppState appState) {
+    final expansionKey = _sectionExpansionKey('schedule');
+    final isExpanded = appState.isSectionExpanded(
+      expansionKey,
+      defaultValue: true,
+    );
+
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Gym schedule',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Add gym day',
-                  onPressed: () => _openAddGymSchedule(context),
-                  icon: const Icon(Icons.add_rounded),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            if (appState.gymSchedules.isEmpty)
-              Text(
-                'No gym reminders set.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              )
-            else
-              ...appState.gymSchedules.map((item) {
-                final day = _weekday(item.weekday);
-                final time =
-                    '${item.hour.toString().padLeft(2, '0')}:${item.minute.toString().padLeft(2, '0')}';
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.fitness_center_rounded),
-                  ),
-                  title: Text(item.title),
-                  subtitle: Text('$day · $time'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Switch.adaptive(
-                        value: item.enabled,
-                        onChanged: (v) =>
-                            appState.toggleGymSchedule(item.id, v),
-                      ),
-                      PopupMenuButton<_WorkoutCardAction>(
-                        tooltip: 'More actions',
-                        icon: const Icon(Icons.more_vert_rounded),
-                        onSelected: (action) {
-                          switch (action) {
-                            case _WorkoutCardAction.edit:
-                              _openAddGymSchedule(context, existing: item);
-                            case _WorkoutCardAction.delete:
-                              appState.removeGymSchedule(item.id);
-                          }
-                        },
-                        itemBuilder: (context) => const [
-                          PopupMenuItem<_WorkoutCardAction>(
-                            value: _WorkoutCardAction.edit,
-                            child: ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: Icon(Icons.edit_outlined),
-                              title: Text('Edit'),
-                            ),
-                          ),
-                          PopupMenuItem<_WorkoutCardAction>(
-                            value: _WorkoutCardAction.delete,
-                            child: ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: Icon(Icons.delete_outline_rounded),
-                              title: Text('Delete'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                );
-              }),
-          ],
+      child: ExpansionTile(
+        key: const ValueKey('workout_section_schedule'),
+        shape: _sectionTileShape(),
+        collapsedShape: _sectionTileShape(),
+        clipBehavior: Clip.antiAlias,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+        childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+        initiallyExpanded: isExpanded,
+        onExpansionChanged: (expanded) {
+          appState.setSectionExpanded(expansionKey, expanded);
+        },
+        title: Text(
+          'Gym schedule',
+          style: Theme.of(context).textTheme.titleMedium,
         ),
+        subtitle: Text('${appState.gymSchedules.length} entries'),
+        trailing: _sectionTrailing(
+          context,
+          expanded: isExpanded,
+          addTooltip: 'Add gym day',
+          onAdd: () => _openAddGymSchedule(context),
+        ),
+        children: [
+          if (appState.gymSchedules.isEmpty)
+            Text(
+              'No gym reminders set.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            )
+          else
+            ...appState.gymSchedules.map((item) {
+              final day = _weekday(item.weekday);
+              final time =
+                  '${item.hour.toString().padLeft(2, '0')}:${item.minute.toString().padLeft(2, '0')}';
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const CircleAvatar(
+                  child: Icon(Icons.fitness_center_rounded),
+                ),
+                title: Text(item.title),
+                subtitle: Text('$day · $time'),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Switch.adaptive(
+                      value: item.enabled,
+                      onChanged: (v) => appState.toggleGymSchedule(item.id, v),
+                    ),
+                    PopupMenuButton<_WorkoutCardAction>(
+                      tooltip: 'More actions',
+                      icon: const Icon(Icons.more_vert_rounded),
+                      onSelected: (action) {
+                        switch (action) {
+                          case _WorkoutCardAction.edit:
+                            _openAddGymSchedule(context, existing: item);
+                          case _WorkoutCardAction.delete:
+                            appState.removeGymSchedule(item.id);
+                        }
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem<_WorkoutCardAction>(
+                          value: _WorkoutCardAction.edit,
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.edit_outlined),
+                            title: Text('Edit'),
+                          ),
+                        ),
+                        PopupMenuItem<_WorkoutCardAction>(
+                          value: _WorkoutCardAction.delete,
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.delete_outline_rounded),
+                            title: Text('Delete'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }),
+        ],
       ),
     );
   }
@@ -146,41 +197,50 @@ class WorkoutPage extends StatelessWidget {
 
     final prs = map.values.toList()
       ..sort((a, b) => b.weight.compareTo(a.weight));
+    final expansionKey = _sectionExpansionKey('personalRecords');
+    final isExpanded = appState.isSectionExpanded(
+      expansionKey,
+      defaultValue: true,
+    );
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Personal records',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 10),
-            if (prs.isEmpty)
-              Text(
-                'No lifts yet.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              )
-            else
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    for (var i = 0; i < prs.length && i < 8; i++) ...[
-                      if (i > 0) const SizedBox(width: 8),
-                      Chip(
-                        label: Text(
-                          '${prs[i].exercise}: ${prs[i].weight.toStringAsFixed(1)} kg',
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-          ],
+      child: ExpansionTile(
+        key: const ValueKey('workout_section_pr'),
+        shape: _sectionTileShape(),
+        collapsedShape: _sectionTileShape(),
+        clipBehavior: Clip.antiAlias,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+        childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+        initiallyExpanded: isExpanded,
+        onExpansionChanged: (expanded) {
+          appState.setSectionExpanded(expansionKey, expanded);
+        },
+        title: Text(
+          'Personal records',
+          style: Theme.of(context).textTheme.titleMedium,
         ),
+        subtitle: Text('${prs.length} exercises'),
+        trailing: _sectionTrailing(context, expanded: isExpanded),
+        children: [
+          if (prs.isEmpty)
+            Text('No lifts yet.', style: Theme.of(context).textTheme.bodyMedium)
+          else
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (var i = 0; i < prs.length && i < 8; i++) ...[
+                    if (i > 0) const SizedBox(width: 8),
+                    Chip(
+                      label: Text(
+                        '${prs[i].exercise}: ${prs[i].weight.toStringAsFixed(1)} kg',
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -191,96 +251,103 @@ class WorkoutPage extends StatelessWidget {
       final key = _normalizeExerciseName(entry.exercise);
       groupedEntries.putIfAbsent(key, () => <WorkoutEntry>[]).add(entry);
     }
+    final expansionKey = _sectionExpansionKey('log');
+    final isExpanded = appState.isSectionExpanded(
+      expansionKey,
+      defaultValue: true,
+    );
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Workout log',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Add lift',
-                  onPressed: () => _openAddWorkoutDialog(context),
-                  icon: const Icon(Icons.add_rounded),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            if (appState.workoutEntries.isEmpty)
-              Text(
-                'No workout entries yet.',
-                style: Theme.of(context).textTheme.bodyMedium,
-              )
-            else
-              ...groupedEntries.entries.map((group) {
-                final logs = group.value;
-                final latest = logs.first;
-                final pr = logs.reduce((a, b) => a.weight >= b.weight ? a : b);
-
-                return ExpansionTile(
-                  tilePadding: EdgeInsets.zero,
-                  childrenPadding: EdgeInsets.zero,
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.monitor_weight_rounded),
-                  ),
-                  title: Text(latest.exercise),
-                  subtitle: Text(
-                    '${logs.length} logs · PR ${pr.weight.toStringAsFixed(1)} kg',
-                  ),
-                  children: logs.take(12).map((entry) {
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        '${DateFormat('d MMM yyyy').format(entry.date)} · ${entry.sets}x${entry.reps} · ${entry.weight.toStringAsFixed(1)} kg',
-                      ),
-                      subtitle:
-                          (entry.notes == null || entry.notes!.trim().isEmpty)
-                          ? null
-                          : Text(entry.notes!),
-                      trailing: PopupMenuButton<_WorkoutCardAction>(
-                        tooltip: 'More actions',
-                        icon: const Icon(Icons.more_vert_rounded),
-                        onSelected: (action) {
-                          switch (action) {
-                            case _WorkoutCardAction.edit:
-                              _openAddWorkoutDialog(context, existing: entry);
-                            case _WorkoutCardAction.delete:
-                              appState.removeWorkoutEntry(entry.id);
-                          }
-                        },
-                        itemBuilder: (context) => const [
-                          PopupMenuItem<_WorkoutCardAction>(
-                            value: _WorkoutCardAction.edit,
-                            child: ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: Icon(Icons.edit_outlined),
-                              title: Text('Edit'),
-                            ),
-                          ),
-                          PopupMenuItem<_WorkoutCardAction>(
-                            value: _WorkoutCardAction.delete,
-                            child: ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: Icon(Icons.delete_outline_rounded),
-                              title: Text('Delete'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                );
-              }),
-          ],
+      child: ExpansionTile(
+        key: const ValueKey('workout_section_log'),
+        shape: _sectionTileShape(),
+        collapsedShape: _sectionTileShape(),
+        clipBehavior: Clip.antiAlias,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+        childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+        initiallyExpanded: isExpanded,
+        onExpansionChanged: (expanded) {
+          appState.setSectionExpanded(expansionKey, expanded);
+        },
+        title: Text(
+          'Workout log',
+          style: Theme.of(context).textTheme.titleMedium,
         ),
+        subtitle: Text('${appState.workoutEntries.length} entries'),
+        trailing: _sectionTrailing(
+          context,
+          expanded: isExpanded,
+          addTooltip: 'Add lift',
+          onAdd: () => _openAddWorkoutDialog(context),
+        ),
+        children: [
+          if (appState.workoutEntries.isEmpty)
+            Text(
+              'No workout entries yet.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            )
+          else
+            ...groupedEntries.entries.map((group) {
+              final logs = group.value;
+              final latest = logs.first;
+              final pr = logs.reduce((a, b) => a.weight >= b.weight ? a : b);
+
+              return ExpansionTile(
+                key: ValueKey('workout_log_${group.key}'),
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: EdgeInsets.zero,
+                leading: const CircleAvatar(
+                  child: Icon(Icons.monitor_weight_rounded),
+                ),
+                title: Text(latest.exercise),
+                subtitle: Text(
+                  '${logs.length} logs · PR ${pr.weight.toStringAsFixed(1)} kg',
+                ),
+                children: logs.take(12).map((entry) {
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      '${DateFormat('d MMM yyyy').format(entry.date)} · ${entry.sets}x${entry.reps} · ${entry.weight.toStringAsFixed(1)} kg',
+                    ),
+                    subtitle:
+                        (entry.notes == null || entry.notes!.trim().isEmpty)
+                        ? null
+                        : Text(entry.notes!),
+                    trailing: PopupMenuButton<_WorkoutCardAction>(
+                      tooltip: 'More actions',
+                      icon: const Icon(Icons.more_vert_rounded),
+                      onSelected: (action) {
+                        switch (action) {
+                          case _WorkoutCardAction.edit:
+                            _openAddWorkoutDialog(context, existing: entry);
+                          case _WorkoutCardAction.delete:
+                            appState.removeWorkoutEntry(entry.id);
+                        }
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem<_WorkoutCardAction>(
+                          value: _WorkoutCardAction.edit,
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.edit_outlined),
+                            title: Text('Edit'),
+                          ),
+                        ),
+                        PopupMenuItem<_WorkoutCardAction>(
+                          value: _WorkoutCardAction.delete,
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.delete_outline_rounded),
+                            title: Text('Delete'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              );
+            }),
+        ],
       ),
     );
   }

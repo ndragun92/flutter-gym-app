@@ -33,6 +33,7 @@ class AppState extends ChangeNotifier {
   static const _stepSensorStateKey = 'step_sensor_state';
   static const _goalsKey = 'goals';
   static const _userProfileKey = 'user_profile';
+  static const _uiExpansionStateKey = 'ui_expansion_state';
   static const _backupVersion = 2;
   static const _profileImageAssetKey = 'profile_image';
 
@@ -65,6 +66,7 @@ class AppState extends ChangeNotifier {
   StreamSubscription<StepSensorSample>? _stepCounterSubscription;
   final Map<String, int> _stepGoalsByDay = <String, int>{};
   final Map<String, int> _stepBaselineByDay = <String, int>{};
+  final Map<String, bool> _uiExpansionState = <String, bool>{};
   int? _lastRawStepCount;
   DateTime? _lastRawStepAt;
 
@@ -176,6 +178,23 @@ class AppState extends ChangeNotifier {
         );
       } catch (_) {
         userProfile = null;
+      }
+    }
+
+    final uiExpansionRaw = prefs.getString(_uiExpansionStateKey);
+    if (uiExpansionRaw != null && uiExpansionRaw.isNotEmpty) {
+      try {
+        final parsed = jsonDecode(uiExpansionRaw) as Map<String, dynamic>;
+        _uiExpansionState
+          ..clear()
+          ..addAll(
+            parsed.map(
+              (key, value) =>
+                  MapEntry(key, (value is bool) ? value : value == true),
+            ),
+          );
+      } catch (_) {
+        _uiExpansionState.clear();
       }
     }
 
@@ -318,6 +337,11 @@ class AppState extends ChangeNotifier {
     await prefs.setString(_userProfileKey, userProfile!.toJson());
   }
 
+  Future<void> _saveUiExpansionState() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_uiExpansionStateKey, jsonEncode(_uiExpansionState));
+  }
+
   Future<void> _saveAllState() async {
     await _saveList(_mealLogsKey, mealEntries.map((e) => e.toMap()).toList());
     await _saveList(
@@ -347,9 +371,21 @@ class AppState extends ChangeNotifier {
       stepDayEntries.map((e) => e.toMap()).toList(),
     );
     await _saveUserProfile();
+    await _saveUiExpansionState();
     await _saveGoals();
     await _saveStepGoalsByDay();
     await _saveStepSensorState();
+  }
+
+  bool isSectionExpanded(String key, {bool defaultValue = false}) {
+    return _uiExpansionState[key] ?? defaultValue;
+  }
+
+  Future<void> setSectionExpanded(String key, bool expanded) async {
+    if (_uiExpansionState[key] == expanded) return;
+    _uiExpansionState[key] = expanded;
+    await _saveUiExpansionState();
+    notifyListeners();
   }
 
   Set<String> _collectReferencedImagePaths() {
